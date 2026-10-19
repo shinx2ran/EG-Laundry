@@ -262,19 +262,26 @@ type MessageOrder = Pick<Order, 'order_number' | 'received_at' | 'promised_at'>
 type MessageItem = Pick<OrderItem, 'service_name' | 'qty' | 'unit'>
 type MessageOrg = Pick<Organization, 'name' | 'wa_footer'>
 
-/** Struk masuk: the items, the total and what was paid with the order as DP. */
+/**
+ * Struk masuk: the items, the total and what was paid so far as DP. A fully paid order says "lunas" instead of
+ * "DP" (paying everything up front is no down payment).
+ */
 export function orderReceiptText(order: MessageOrder, items: MessageItem[], totals: Pick<OrderTotals, 'total' | 'paid'>, customer: Pick<Customer, 'name'> | undefined, org: MessageOrg): string {
-  return receiptText({
+  const paidInFull = totals.total > 0 && totals.paid >= totals.total
+  const text = receiptText({
     customerName: customer?.name ?? 'Pelanggan',
     laundryName: org.name,
     orderNumber: order.order_number,
     receivedAt: order.received_at,
     items,
     total: totals.total,
-    dp: totals.paid,
+    dp: paidInFull ? 0 : totals.paid,
     promisedAt: order.promised_at,
     footer: org.wa_footer,
   })
+  if (!paidInFull) return text
+  const total = `Total ${formatRupiah(totals.total)}.`
+  return text.replace(total, `Total ${formatRupiah(totals.total)} (lunas).`)
 }
 
 /** Cucian siap diambil: the items, the total and the remaining amount (or lunas). */
