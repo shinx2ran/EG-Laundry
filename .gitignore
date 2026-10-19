@@ -1,0 +1,43 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+dev-dist
+*.local
+
+# Env: only .env.example and .env.production are committed. .env.production holds the PUBLIC Supabase URL and
+# publishable key (checked by scripts/check-public-config.mjs); never commit the secret / service_role key.
+.env
+.env.*
+!.env.example
+!/.env.production
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tests
+coverage
+test-results
+playwright-report
+
+# Claude Code worktrees / local state
+.claude/worktrees/
+dist-sub

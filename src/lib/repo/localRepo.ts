@@ -1,0 +1,255 @@
+import type { Insert, Row, TableName, Update } from '../../types/db'
+import { TABLE_NAMES } from '../../types/db'
+import { newId } from '../ids'
+import type { CreatedInvitation, ListOptions, Repo, StorageBucket } from './types'
+import { CODE_ALPHABET, DELETE_DENIED_MESSAGE, IN_USE_MESSAGE, UPDATE_DENIED_MESSAGE, formatCode } from './types'
+import type { MemberRole } from '../../types/db'
+
+export const STORAGE_KEY = 'eglaundry.local.db.v1'
+
+type Db = { [K in TableName]: Row<K>[] }
+
+function emptyDb(): Db {
+  const db = {} as Db
+  for (const t of TABLE_NAMES) (db as Record<string, unknown[]>)[t] = []
+  return db
+}
+
+function loadDb(): Db {
+  try {
+    const raw = globalThis.localStorage?.getItem(STORAGE_KEY)
+    if (!raw) return emptyDb()
+    const parsed = JSON.parse(raw) as Partial<Db>
+    const db = emptyDb()
+    for (const t of TABLE_NAMES) {
+      const rows = parsed[t]
+      if (Array.isArray(rows)) (db as Record<string, unknown[]>)[t] = rows.map((r) => withColumnDefaults(t, r as unknown as Record<string, unknown>))
+    }
+    return db
+  } catch {
+    // keep unreadable data for recovery; the demo seed would otherwise overwrite it on start
+    try {
+      const raw = globalThis.localStorage?.getItem(STORAGE_KEY)
+      if (raw) globalThis.localStorage?.setItem(`${STORAGE_KEY}.corrupt`, raw)
+    } catch {
+      // storage blocked or full
+    }
+    return emptyDb()
+  }
+}
+
+/** Columns added after the first release default to null (like a DB migration) for rows stored earlier. */
+const COLUMN_DEFAULTS: Partial<Record<TableName, Record<string, unknown>>> = {
+  invitations: { label: null, expires_at: '2099-12-31T00:00:00.000Z', accepted_by: null },
+}
+
+function withColumnDefaults(table: TableName, row: Record<string, unknown>): Record<string, unknown> {
+  const defaults = COLUMN_DEFAULTS[table]
+  if (!defaults) return row
+  const next = { ...row }
+  for (const [k, v] of Object.entries(defaults)) if (next[k] === undefined) next[k] = v
+  return next
+}
+
+function saveDb(db: Db) {
+  try {
+    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(db))
+  } catch (err) {
+    console.error('Gagal menyimpan data lokal', err)
+    throw new Error('Penyimpanan browser penuh atau tidak tersedia.')
+  }
+}
+
+const rec = (r: unknown) => r as Record<string, unknown>
+
+function compare(a: unknown, b: unknown): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  return String(a).localeCompare(String(b))
+}
+
+/**
+ * Browser-only persistence (localStorage). Used for "Mode Demo" when Supabase is not configured,
+ * and for unit tests. Data never leaves the device.
+ */
+export class LocalRepo implements Repo {
+  readonly mode = 'local' as const
+  private db: Db
+
+  constructor(initial?: Db) {
+    this.db = initial ?? loadDb()
+  }
+
+  /** Replace everything (used by demo seeding / reset). */
+  replaceAll(db: Db) {
+    this.db = db
+    saveDb(this.db)
+  }
+
+  snapshot(): Db {
+    return JSON.parse(JSON.stringify(this.db)) as Db
+  }
+
+  isEmpty(): boolean {
+    return TABLE_NAMES.every((t) => this.db[t].length === 0)
+  }
+
+  async list<T extends TableName>(table: T, opts: ListOptions<Row<T>> = {}): Promise<Row<T>[]> {
+    let rows = this.db[table] as Row<T>[]
+    const where = opts.where ?? {}
+    rows = rows.filter((r) => {
+      for (const [col, val] of Object.entries(where)) {
+        if (val === undefined) continue
+        const actual = rec(r)[col]
+        if (Array.isArray(val)) {
+          if (!(val as unknown[]).includes(actual)) return false
+        } else if (actual !== val) return false
+      }
+      for (const [col, val] of Object.entries(opts.gte ?? {})) {
+        if (val == null) continue
+        if (compare(rec(r)[col], val) < 0) return false
+      }
+      for (const [col, val] of Object.entries(opts.lte ?? {})) {
+        if (val == null) continue
+        if (compare(rec(r)[col], val) > 0) return false
+      }
+      return true
+    })
+    const order = opts.orderBy ?? { column: 'created_at', ascending: false }
+    rows = [...rows].sort((a, b) => {
+      const c = compare(rec(a)[order.column], rec(b)[order.column])
+      return order.ascending === false ? -c : c
+    })
+    if (opts.limit) rows = rows.slice(0, opts.limit)
+    return rows.map((r) => ({ ...r }))
+  }
+
+  async get<T extends TableName>(table: T, id: string): Promise<Row<T> | null> {
+    const row = (this.db[table] as Row<T>[]).find((r) => r.id === id)
+    return row ? { ...row } : null
+  }
+
+  async insert<T extends TableName>(table: T, row: Insert<T>): Promise<Row<T>> {
+    const [created] = await this.insertMany(table, [row])
+    return created
+  }
+
+  async insertMany<T extends TableName>(table: T, rows: Insert<T>[]): Promise<Row<T>[]> {
+    const now = new Date().toISOString()
+    const created = rows.map((row) => {
+      const full = {
+        ...row,
+        id: (row as { id?: string }).id ?? newId(),
+        created_at: (row as { created_at?: string }).created_at ?? now,
+      } as Record<string, unknown>
+      if (hasUpdatedAt(table)) full.updated_at = (row as { updated_at?: string }).updated_at ?? now
+      return full as unknown as Row<T>
+    })
+    ;(this.db[table] as Row<T>[]).push(...created)
+    saveDb(this.db)
+    return created.map((r) => ({ ...r }))
+  }
+
+  async update<T extends TableName>(table: T, id: string, patch: Update<T>, orgId?: string): Promise<Row<T>> {
+    const rows = this.db[table] as Row<T>[]
+    const idx = rows.findIndex((r) => r.id === id && (!orgId || rec(r).org_id === orgId))
+    if (idx < 0) throw new Error(UPDATE_DENIED_MESSAGE)
+    const next = { ...rows[idx], ...patch } as Record<string, unknown>
+    if (hasUpdatedAt(table)) next.updated_at = new Date().toISOString()
+    rows[idx] = next as unknown as Row<T>
+    saveDb(this.db)
+    return { ...rows[idx] }
+  }
+
+  async remove<T extends TableName>(table: T, id: string, orgId?: string): Promise<void> {
+    const rows = this.db[table] as Row<T>[]
+    const idx = rows.findIndex((r) => r.id === id && (!orgId || rec(r).org_id === orgId))
+    // like SupabaseRepo: deleting nothing is an error, never a silent success
+    if (idx < 0) throw new Error(DELETE_DENIED_MESSAGE)
+    if (this.isReferenced(table, id)) throw new Error(IN_USE_MESSAGE)
+    rows.splice(idx, 1)
+    saveDb(this.db)
+  }
+
+  /** Mirror the database's ON DELETE RESTRICT rules so demo mode behaves like online mode (the laundry modules add theirs). */
+  private isReferenced(_table: TableName, _id: string): boolean {
+    return false
+  }
+
+  async ensureMembership(user: { id: string; email: string | null }): Promise<string> {
+    const [org] = this.db.organizations
+    if (!org) throw new Error('Data demo belum tersedia.')
+    if (!this.db.organization_members.some((m) => m.org_id === org.id && m.user_id === user.id)) {
+      await this.insert('organization_members', { org_id: org.id, user_id: user.id, email: user.email, role: 'owner' })
+    }
+    return org.id
+  }
+
+  async uploadFile(_bucket: StorageBucket, _path: string, _file: Blob): Promise<string | null> {
+    // Files are not persisted in local mode (localStorage is too small for photos).
+    return null
+  }
+
+  async getFileUrl(): Promise<string | null> {
+    return null
+  }
+
+  async removeFile(): Promise<void> {
+    /* nothing stored */
+  }
+
+  /** Demo mode has a single local user who is always a member, so any code simply returns the org. */
+  async joinWithCode(): Promise<string> {
+    const [org] = this.db.organizations
+    if (!org) throw new Error('Data demo belum tersedia.')
+    return org.id
+  }
+
+  async createInvitation(orgId: string, role: 'admin' | 'staff', label: string | null): Promise<CreatedInvitation> {
+    const bytes = new Uint8Array(8)
+    crypto.getRandomValues(bytes)
+    const code = Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('')
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    await this.insert('invitations', {
+      org_id: orgId,
+      label: label?.trim() || null,
+      email: null,
+      role,
+      invited_by: null,
+      expires_at: expiresAt,
+      accepted_at: null,
+      accepted_by: null,
+    })
+    return { code: formatCode(code), expiresAt }
+  }
+
+  async setMemberRole(orgId: string, userId: string, role: MemberRole): Promise<void> {
+    const members = this.db.organization_members.filter((m) => m.org_id === orgId)
+    const target = members.find((m) => m.user_id === userId)
+    if (!target) throw new Error('Anggota tidak ditemukan.')
+    if (target.role === 'owner' && role !== 'owner' && members.filter((m) => m.role === 'owner').length <= 1) {
+      throw new Error('Tidak dapat mengubah peran pemilik terakhir.')
+    }
+    target.role = role
+    saveDb(this.db)
+  }
+
+  async removeMember(orgId: string, userId: string): Promise<void> {
+    this.db.organization_members = this.db.organization_members.filter(
+      (m) => !(m.org_id === orgId && m.user_id === userId),
+    )
+    saveDb(this.db)
+  }
+}
+
+// tables with an updated_at column (the laundry modules add theirs)
+const TABLES_WITH_UPDATED_AT: ReadonlySet<TableName> = new Set<TableName>([])
+
+function hasUpdatedAt(table: TableName): boolean {
+  return TABLES_WITH_UPDATED_AT.has(table)
+}
+
+export type { Db as LocalDb }
+export { emptyDb as emptyLocalDb }
