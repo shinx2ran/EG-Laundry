@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Insert, Row, TableName, Update } from '../../types/db'
 import type { CreatedInvitation, ListOptions, Repo, StorageBucket } from './types'
-import { DELETE_DENIED_MESSAGE, IN_USE_MESSAGE, NotMemberError, UPDATE_DENIED_MESSAGE, formatCode, normalizeCode } from './types'
+import { DELETE_DENIED_MESSAGE, IN_USE_MESSAGE, NotMemberError, ORDER_NUMBER_TAKEN_MESSAGE, UPDATE_DENIED_MESSAGE, formatCode, normalizeCode } from './types'
 import type { MemberRole } from '../../types/db'
 
 /** The parts of a PostgREST/Postgres error worth reading (Postgres puts "still referenced" in details). */
@@ -15,6 +15,8 @@ export interface DbError {
 export function translateDbError(error: string | DbError): string {
   const { message, code, details } = typeof error === 'string' ? { message: error, code: null, details: null } : error
   if (code === '42501' || /row-level security|permission denied|42501/i.test(message)) return 'Anda tidak memiliki izin untuk tindakan ini.'
+  // two phones took the same order number at the same moment (unique (org_id, order_number)): retry with the next one
+  if (/orders_org_id_order_number_key|order_number/i.test(message) && /duplicate|unique/i.test(message)) return ORDER_NUMBER_TAKEN_MESSAGE
   // 23503 on a delete ("update or delete on table ...", details "... is still referenced ...") = ON DELETE RESTRICT
   if ((code === '23503' || /violates foreign key constraint/i.test(message)) && /^update or delete on table|still referenced/i.test(`${message}\n${details ?? ''}`)) {
     return IN_USE_MESSAGE

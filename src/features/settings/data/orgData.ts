@@ -1,10 +1,10 @@
 /** Reading the online organisation's data for the full backup. */
 import type { ListOptions, OrgRepo } from '../../../lib/repo/types'
-import type { OrgTableName, Row, TableName } from '../../../types/db'
+import { LAUNDRY_TABLES, type OrgTableName, type Row, type TableName } from '../../../types/db'
 import { buildBackupFile, type BackupFile } from './backupFile'
 
-/** Org tables in a full backup besides `organizations` (this org's row) and the optional `audit_log`. */
-export const BACKUP_TABLES = ['organization_members', 'invitations'] as const satisfies readonly OrgTableName[]
+/** Org tables in a full backup besides `organizations` (this org's row) and the optional `audit_log`: members, invitations and every laundry table. */
+export const BACKUP_TABLES = ['organization_members', 'invitations', ...LAUNDRY_TABLES] as const satisfies readonly OrgTableName[]
 
 function listOrdered<T extends OrgTableName>(repo: OrgRepo, table: T, column: string): Promise<Row<T>[]> {
   return repo.list(table, { orderBy: { column, ascending: true } } as ListOptions<Row<T>>)

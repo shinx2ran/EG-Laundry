@@ -12,8 +12,8 @@
 --    prices and corrections), and composite foreign keys (org_id, id) make cross-organisation
 --    references impossible.
 --  * Every change is recorded in audit_log by triggers; nobody can change that history via the API.
---  * This file holds the core (membership, history, storage, keep-alive, backups). The laundry tables
---    (SPEC section 3: price list, customers, orders) are added in their own section below.
+--  * Core (membership, history, storage, keep-alive, backups) first, then the laundry tables of SPEC
+--    section 3 (price list, customers, orders, packages, payments) with their consistency triggers.
 -- =====================================================================================
 
 begin;
@@ -340,8 +340,177 @@ begin
 end $$;
 
 -- ---------- laundry tables (SPEC section 3) ----------
--- Added by the laundry modules: every table has org_id and unique (org_id, id) so children can reference
--- parents with a composite FK; RLS select for members, prices/corrections admin only; audit trigger on each.
+-- Every table has org_id and unique (org_id, id) so children reference parents with a composite FK: a row can
+-- never point into another organisation. Order items and sold packages carry COPIES of the service / catalog
+-- entry, so later price changes leave history alone. Totals and the pay status are never stored (SPEC 3.3):
+-- the app derives them from items and payments, and the triggers below keep those rows consistent.
+
+-- WhatsApp texts of the laundry (SPEC 3.7, 3.9); a no-op on an installation that already has them
+alter table public.organizations add column if not exists promo_template text;
+alter table public.organizations add column if not exists wa_footer text;
+
+-- price list (SPEC 3.1): admin only; staff read it
+create table if not exists public.services (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  name text not null,
+  unit text not null check (unit in ('kg', 'pcs')),
+  price bigint not null check (price >= 0),
+  -- null = this service has no express option
+  price_express bigint check (price_express is null or price_express >= 0),
+  days_regular int not null default 3 check (days_regular >= 0),
+  days_express int check (days_express is null or days_express >= 0),
+  -- minimum billed quantity (2 kg); 0 = none
+  min_qty numeric(8,2) not null default 0 check (min_qty >= 0),
+  sort_order int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (org_id, id)
+);
+
+-- customers (SPEC 3.2): kos tenants (is_tenant, room_name, kos_tenant_id from the Woombad import) and walk-ins
+create table if not exists public.customers (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  name text not null,
+  phone text,
+  is_tenant boolean not null default false,
+  room_name text,
+  kos_tenant_id text,
+  address text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (org_id, id)
+);
+
+-- orders (SPEC 3.3)
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  -- 'LD-YYYYMM-NNNN'; a clash (two phones at once) makes the app retry with the next number
+  order_number text not null,
+  customer_id uuid not null,
+  received_at date not null default current_date,
+  promised_at date,
+  express boolean not null default false,
+  status text not null default 'received' check (status in ('received', 'processing', 'ready', 'done', 'cancelled')),
+  ready_at timestamptz,
+  picked_up_at timestamptz,
+  discount bigint not null default 0 check (discount >= 0),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (org_id, id),
+  unique (org_id, order_number),
+  -- a customer with orders stays (the app says "masih dipakai")
+  foreign key (org_id, customer_id) references public.customers (org_id, id) on delete restrict
+);
+
+-- packages on offer (SPEC 3.4): admin only
+create table if not exists public.package_catalog (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  name text not null,
+  service_id uuid not null,
+  qty numeric(8,2) not null check (qty > 0),
+  price bigint not null check (price >= 0),
+  -- null = never expires
+  valid_days int check (valid_days is null or valid_days > 0),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (org_id, id),
+  foreign key (org_id, service_id) references public.services (org_id, id) on delete restrict
+);
+
+-- packages a customer bought (SPEC 3.4): a copy of the catalog entry; the remaining qty is computed from items
+create table if not exists public.customer_packages (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  customer_id uuid not null,
+  catalog_id uuid,
+  name text not null,
+  service_id uuid not null,
+  qty_total numeric(8,2) not null check (qty_total > 0),
+  price bigint not null check (price >= 0),
+  purchased_at date not null default current_date,
+  expires_at date,
+  method text not null default 'cash' check (method in ('cash', 'transfer', 'qris')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (org_id, id),
+  foreign key (org_id, customer_id) references public.customers (org_id, id) on delete restrict,
+  foreign key (org_id, catalog_id) references public.package_catalog (org_id, id) on delete set null (catalog_id),
+  foreign key (org_id, service_id) references public.services (org_id, id) on delete restrict
+);
+
+-- order lines (SPEC 3.3): the service copied at the time of the order
+create table if not exists public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  order_id uuid not null,
+  service_id uuid,
+  service_name text not null,
+  unit text not null check (unit in ('kg', 'pcs')),
+  unit_price bigint not null check (unit_price >= 0),
+  qty numeric(8,2) not null check (qty > 0),
+  line_total bigint not null,
+  customer_package_id uuid,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- the line always explains itself; pcs are whole; a package line is free
+  check (line_total = round(qty * unit_price)),
+  check (unit <> 'pcs' or qty = trunc(qty)),
+  check (customer_package_id is null or unit_price = 0),
+  unique (org_id, id),
+  foreign key (org_id, order_id) references public.orders (org_id, id) on delete cascade,
+  foreign key (org_id, service_id) references public.services (org_id, id) on delete set null (service_id),
+  foreign key (org_id, customer_package_id) references public.customer_packages (org_id, id) on delete restrict
+);
+
+-- payments (SPEC 3.5): DP and settlement; never more than the order total (payments_limit below)
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  order_id uuid not null,
+  amount bigint not null check (amount > 0),
+  paid_at date not null default current_date,
+  method text not null default 'cash' check (method in ('cash', 'transfer', 'qris')),
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (org_id, id),
+  foreign key (org_id, order_id) references public.orders (org_id, id) on delete cascade
+);
+
+-- indexes
+create index if not exists services_org_idx on public.services (org_id, sort_order);
+create index if not exists customers_org_idx on public.customers (org_id, name);
+create index if not exists orders_org_received_idx on public.orders (org_id, received_at desc);
+create index if not exists orders_org_status_idx on public.orders (org_id, status);
+create index if not exists orders_customer_idx on public.orders (customer_id);
+create index if not exists order_items_order_idx on public.order_items (order_id);
+create index if not exists order_items_package_idx on public.order_items (customer_package_id) where customer_package_id is not null;
+create index if not exists package_catalog_org_idx on public.package_catalog (org_id);
+create index if not exists customer_packages_customer_idx on public.customer_packages (customer_id);
+create index if not exists customer_packages_org_idx on public.customer_packages (org_id, purchased_at);
+create index if not exists payments_org_paid_idx on public.payments (org_id, paid_at);
+create index if not exists payments_order_idx on public.payments (order_id);
+
+-- updated_at triggers
+do $$
+declare t text;
+begin
+  foreach t in array array['services', 'customers', 'orders', 'order_items', 'package_catalog', 'customer_packages', 'payments'] loop
+    execute format('drop trigger if exists set_updated_at on public.%I', t);
+    execute format('create trigger set_updated_at before update on public.%I for each row execute function public.set_updated_at()', t);
+  end loop;
+end $$;
 
 -- ---------- row ownership helpers ----------
 
@@ -372,6 +541,190 @@ end $$;
 drop trigger if exists set_created_by on public.organizations;
 create trigger set_created_by before insert or update of created_by on public.organizations
   for each row execute function public.set_created_by();
+drop trigger if exists set_created_by on public.payments;
+create trigger set_created_by before insert or update of created_by on public.payments
+  for each row execute function public.set_created_by();
+
+do $$
+declare t text;
+begin
+  foreach t in array array['services', 'customers', 'orders', 'order_items', 'package_catalog', 'customer_packages', 'payments'] loop
+    execute format('drop trigger if exists keep_org_id on public.%I', t);
+    execute format('create trigger keep_org_id before update of org_id on public.%I for each row execute function public.keep_org_id()', t);
+  end loop;
+end $$;
+
+-- ---------- laundry rules (SPEC 3.3 - 3.5, 3.10) ----------
+-- Row-level rights are in the policies below; these triggers keep the rows consistent and guard what a
+-- policy cannot express. auth.uid() is null for the operator (SQL editor, service role): the role rule
+-- (orders_done_guard) does not limit the operator, the integrity rules apply to everyone. The functions
+-- are security definer so their sums see every row whatever the caller's policies hide.
+
+-- A done/cancelled order is frozen for staff: neither the order nor its items change (SPEC 3.3, 3.10).
+create or replace function public.orders_done_guard()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  ids uuid[];
+  oid uuid;
+  o record;
+begin
+  if auth.uid() is not null then
+    if tg_table_name = 'orders' then
+      if old.status in ('done', 'cancelled') and not public.is_org_admin(old.org_id) then
+        raise exception 'Pesanan yang sudah selesai hanya bisa diubah pemilik/admin.';
+      end if;
+    else
+      ids := case tg_op when 'INSERT' then array[new.order_id] when 'DELETE' then array[old.order_id]
+                        else array[new.order_id, old.order_id] end;
+      foreach oid in array ids loop
+        select status, org_id into o from public.orders where id = oid;
+        if found and o.status in ('done', 'cancelled') and not public.is_org_admin(o.org_id) then
+          raise exception 'Pesanan yang sudah selesai hanya bisa diubah pemilik/admin.';
+        end if;
+      end loop;
+    end if;
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end $$;
+
+drop trigger if exists orders_done_guard on public.orders;
+create trigger orders_done_guard before update on public.orders
+  for each row execute function public.orders_done_guard();
+drop trigger if exists orders_done_guard on public.order_items;
+create trigger orders_done_guard before insert or update or delete on public.order_items
+  for each row execute function public.orders_done_guard();
+
+-- Cancelling: only from Diterima/Proses, and only while nothing was paid (delete the payments first, admin).
+create or replace function public.orders_cancel_guard()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if new.status = 'cancelled' and old.status <> 'cancelled' then
+    if old.status not in ('received', 'processing') then
+      raise exception 'Pesanan hanya dapat dibatalkan selama Diterima/Proses.';
+    end if;
+    if exists (select 1 from public.payments where order_id = new.id) then
+      raise exception 'Pesanan yang sudah ada pembayarannya tidak dapat dibatalkan.';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists orders_cancel_guard on public.orders;
+create trigger orders_cancel_guard before update of status on public.orders
+  for each row execute function public.orders_cancel_guard();
+
+-- The payments of an order never exceed its total (items minus discount), whichever side changes: a payment,
+-- the discount, or an item. (When items of a paid order are replaced, add the new ones before removing the old.)
+create or replace function public.payments_limit()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  ids uuid[];
+  oid uuid;
+  total bigint;
+  paid bigint;
+begin
+  if tg_table_name = 'orders' then
+    ids := array[new.id];
+  else
+    ids := case tg_op when 'INSERT' then array[new.order_id] when 'DELETE' then array[old.order_id]
+                      else array[new.order_id, old.order_id] end;
+  end if;
+  foreach oid in array ids loop
+    select greatest(coalesce((select sum(i.line_total) from public.order_items i where i.order_id = o.id), 0) - o.discount, 0)
+      into total from public.orders o where o.id = oid;
+    if total is null then continue; end if;
+    select coalesce(sum(amount), 0) into paid from public.payments where order_id = oid;
+    if paid > total then
+      raise exception 'Pembayaran melebihi total pesanan.';
+    end if;
+  end loop;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end $$;
+
+drop trigger if exists payments_limit on public.payments;
+create trigger payments_limit after insert or update on public.payments
+  for each row execute function public.payments_limit();
+drop trigger if exists payments_limit on public.order_items;
+create trigger payments_limit after insert or update or delete on public.order_items
+  for each row execute function public.payments_limit();
+drop trigger if exists payments_limit on public.orders;
+create trigger payments_limit after update of discount on public.orders
+  for each row execute function public.payments_limit();
+
+-- An item that draws on a prepaid package (SPEC 3.4): the order's customer owns it, it is for the same
+-- service, it has not expired on the received date, and its remaining qty (items on orders that are not
+-- cancelled) covers the item.
+create or replace function public.package_use_guard()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  p record;
+  o record;
+  used numeric;
+begin
+  if new.customer_package_id is null then return new; end if;
+  select customer_id, service_id, expires_at, qty_total into p from public.customer_packages where id = new.customer_package_id;
+  if not found then return new; end if;  -- the foreign key reports it
+  select customer_id, received_at into o from public.orders where id = new.order_id;
+  if not found then return new; end if;
+  if p.customer_id <> o.customer_id then
+    raise exception 'Paket ini milik pelanggan lain.';
+  end if;
+  if new.service_id is distinct from p.service_id then
+    raise exception 'Paket ini tidak berlaku untuk layanan tersebut.';
+  end if;
+  if p.expires_at is not null and p.expires_at < o.received_at then
+    raise exception 'Paket sudah kedaluwarsa pada tanggal masuk pesanan.';
+  end if;
+  select coalesce(sum(i.qty), 0) into used
+    from public.order_items i join public.orders x on x.id = i.order_id
+   where i.customer_package_id = new.customer_package_id and i.id <> new.id and x.status <> 'cancelled';
+  if used + new.qty > p.qty_total then
+    raise exception 'Sisa paket tidak cukup.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists package_use_guard on public.order_items;
+create trigger package_use_guard before insert or update on public.order_items
+  for each row execute function public.package_use_guard();
+
+-- The same rules when the order itself changes: another customer, a later received date, or back from cancelled.
+create or replace function public.orders_package_guard()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  r record;
+  used numeric;
+begin
+  if new.customer_id is distinct from old.customer_id and exists (
+       select 1 from public.order_items i join public.customer_packages p on p.id = i.customer_package_id
+        where i.order_id = new.id and p.customer_id <> new.customer_id) then
+    raise exception 'Paket ini milik pelanggan lain.';
+  end if;
+  if (old.status = 'cancelled' and new.status <> 'cancelled') or new.received_at is distinct from old.received_at then
+    for r in select p.id, p.qty_total, p.expires_at, sum(i.qty) as qty
+               from public.order_items i join public.customer_packages p on p.id = i.customer_package_id
+              where i.order_id = new.id group by p.id, p.qty_total, p.expires_at loop
+      if r.expires_at is not null and r.expires_at < new.received_at then
+        raise exception 'Paket sudah kedaluwarsa pada tanggal masuk pesanan.';
+      end if;
+      if new.status <> 'cancelled' then
+        select coalesce(sum(i.qty), 0) into used
+          from public.order_items i join public.orders x on x.id = i.order_id
+         where i.customer_package_id = r.id and x.id <> new.id and x.status <> 'cancelled';
+        if used + r.qty > r.qty_total then
+          raise exception 'Sisa paket tidak cukup.';
+        end if;
+      end if;
+    end loop;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists orders_package_guard on public.orders;
+create trigger orders_package_guard before update of customer_id, status, received_at on public.orders
+  for each row execute function public.orders_package_guard();
 
 -- ---------- audit log ----------
 -- Append-only history written by triggers. Owners/admins can read it; nobody can change it via the API.
@@ -409,7 +762,8 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['organizations', 'organization_members', 'invitations'] loop
+  foreach t in array array['organizations', 'organization_members', 'invitations',
+                           'services', 'customers', 'orders', 'order_items', 'package_catalog', 'customer_packages', 'payments'] loop
     execute format('drop trigger if exists audit_row_change on public.%I', t);
     execute format('create trigger audit_row_change after insert or update or delete on public.%I for each row execute function public.audit_row_change()', t);
   end loop;
@@ -424,6 +778,13 @@ alter table public.invitation_codes enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.join_attempts enable row level security;
 alter table public.audit_log enable row level security;
+alter table public.services enable row level security;
+alter table public.customers enable row level security;
+alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
+alter table public.package_catalog enable row level security;
+alter table public.customer_packages enable row level security;
+alter table public.payments enable row level security;
 -- invitation_codes, app_settings, join_attempts: no policies (and no grants) on purpose
 
 -- organizations: created only by join_with_code() (security definer)
@@ -445,6 +806,39 @@ create policy invitations_delete on public.invitations for delete using (public.
 -- audit_log: owners/admins read; no insert/update/delete policy for anyone
 drop policy if exists audit_log_select on public.audit_log;
 create policy audit_log_select on public.audit_log for select using (public.is_org_admin(org_id));
+
+-- laundry tables (SPEC 3.10): every member reads; the price list and the package catalog are admin-only
+-- writes; orders, items, customers, sold packages and payments are recorded by every member; corrections
+-- (payments, deletes, closed orders through orders_done_guard) are admin-only
+do $$
+declare
+  t text;
+  op text;
+begin
+  foreach t in array array['services', 'customers', 'orders', 'order_items', 'package_catalog', 'customer_packages', 'payments'] loop
+    foreach op in array array['select', 'insert', 'update', 'delete'] loop
+      execute format('drop policy if exists %I on public.%I', t || '_' || op, t);
+    end loop;
+    execute format('create policy %I on public.%I for select using (public.is_org_member(org_id))', t || '_select', t);
+  end loop;
+  foreach t in array array['services', 'package_catalog'] loop
+    execute format('create policy %I on public.%I for insert with check (public.is_org_admin(org_id))', t || '_insert', t);
+    execute format('create policy %I on public.%I for update using (public.is_org_admin(org_id)) with check (public.is_org_admin(org_id))', t || '_update', t);
+    execute format('create policy %I on public.%I for delete using (public.is_org_admin(org_id))', t || '_delete', t);
+  end loop;
+  foreach t in array array['customers', 'orders', 'order_items', 'customer_packages', 'payments'] loop
+    execute format('create policy %I on public.%I for insert with check (public.is_org_member(org_id))', t || '_insert', t);
+  end loop;
+  foreach t in array array['customers', 'orders', 'order_items', 'customer_packages'] loop
+    execute format('create policy %I on public.%I for update using (public.is_org_member(org_id)) with check (public.is_org_member(org_id))', t || '_update', t);
+  end loop;
+  -- items may be removed by staff while the order is open (orders_done_guard); everything else only by admins
+  execute 'create policy order_items_delete on public.order_items for delete using (public.is_org_member(org_id))';
+  execute 'create policy payments_update on public.payments for update using (public.is_org_admin(org_id)) with check (public.is_org_admin(org_id))';
+  foreach t in array array['customers', 'orders', 'customer_packages', 'payments'] loop
+    execute format('create policy %I on public.%I for delete using (public.is_org_admin(org_id))', t || '_delete', t);
+  end loop;
+end $$;
 
 -- ---------- Storage (laundry logo) ----------
 -- Object paths are "<org_id>/<file>"; the logos bucket holds the laundry logo (small images only, 1 MB):
@@ -521,7 +915,8 @@ declare
 begin
   for o in select * from public.organizations order by created_at, id loop
     tables := jsonb_build_object('organizations', jsonb_build_array(to_jsonb(o)));
-    foreach t in array array['organization_members', 'invitations'] loop
+    foreach t in array array['organization_members', 'invitations',
+                             'services', 'customers', 'orders', 'order_items', 'package_catalog', 'customer_packages', 'payments'] loop
       execute format('select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at, x.id), ''[]'') from public.%I x where x.org_id = $1', t)
         into rows using o.id;
       tables := tables || jsonb_build_object(t, rows);
@@ -550,6 +945,8 @@ grant usage on schema public to authenticated;
 grant select, update on public.organizations to authenticated;
 grant select on public.organization_members to authenticated;
 grant select, delete on public.invitations to authenticated;
+grant select, insert, update, delete on public.services, public.customers, public.orders, public.order_items,
+  public.package_catalog, public.customer_packages, public.payments to authenticated;
 grant select on public.audit_log to authenticated;
 -- RPCs
 grant execute on function public.ensure_membership() to authenticated;

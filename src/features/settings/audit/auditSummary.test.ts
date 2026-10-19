@@ -49,7 +49,7 @@ describe('summarizeAuditEntry', () => {
     const before = { name: 'Cuci kering', price: 7_000, status: 'active', notes: null, updated_at: 'a' }
     const after = { name: 'Cuci kering', price: 8_000, status: 'inactive', notes: 'naik', updated_at: 'b' }
     const s = summarizeAuditEntry(entry({ table_name: 'services', old_data: before, new_data: after }))
-    expect(s.tableLabel).toBe('services')
+    expect(s.tableLabel).toBe('Daftar harga')
     expect(s.subject).toBe('Cuci kering')
     expect(s.changes).toEqual(['Harga: Rp 7.000 → Rp 8.000', 'Status: active → inactive', 'Catatan diubah'])
   })

@@ -9,7 +9,7 @@ import { BACKUP_TABLES, fetchOrgBackup } from './orgData'
 function demoRepo() {
   const db = buildDemoDb(new Date(2026, 9, 12))
   // a second organisation on the same "server" must never leak into the backup
-  db.organizations.push({ id: 'other-org', name: 'Lain', created_by: 'x', created_at: '2026-01-01T00:00:00.000Z' })
+  db.organizations.push({ id: 'other-org', name: 'Lain', created_by: 'x', created_at: '2026-01-01T00:00:00.000Z', promo_template: null, wa_footer: null })
   db.invitations.push(
     { id: 'i-mine', org_id: DEMO_ORG_ID, label: 'Istri', email: null, role: 'admin', invited_by: null, expires_at: '2099-01-01T00:00:00Z', accepted_at: null, accepted_by: null, created_at: '2026-10-01T00:00:00Z' },
     { id: 'i-other', org_id: 'other-org', label: 'X', email: null, role: 'staff', invited_by: null, expires_at: '2099-01-01T00:00:00Z', accepted_at: null, accepted_by: null, created_at: '2026-10-01T00:00:00Z' },

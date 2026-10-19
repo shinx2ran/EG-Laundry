@@ -2,7 +2,18 @@ import type { Insert, Row, TableName, Update } from '../../types/db'
 import { TABLE_NAMES } from '../../types/db'
 import { newId } from '../ids'
 import type { CreatedInvitation, ListOptions, Repo, StorageBucket } from './types'
-import { CODE_ALPHABET, DELETE_DENIED_MESSAGE, IN_USE_MESSAGE, UPDATE_DENIED_MESSAGE, formatCode } from './types'
+import {
+  CANCEL_STATUS_MESSAGE,
+  CANCEL_WITH_PAYMENTS_MESSAGE,
+  CODE_ALPHABET,
+  DELETE_DENIED_MESSAGE,
+  IN_USE_MESSAGE,
+  PACKAGE_INSUFFICIENT_MESSAGE,
+  PAYMENT_EXCEEDS_TOTAL_MESSAGE,
+  UPDATE_DENIED_MESSAGE,
+  formatCode,
+} from './types'
+import { orderTotals, packageProblem, packageRemaining, roundQty } from '../../domain/pricing'
 import type { MemberRole } from '../../types/db'
 
 export const STORAGE_KEY = 'eglaundry.local.db.v1'
@@ -40,6 +51,7 @@ function loadDb(): Db {
 
 /** Columns added after the first release default to null (like a DB migration) for rows stored earlier. */
 const COLUMN_DEFAULTS: Partial<Record<TableName, Record<string, unknown>>> = {
+  organizations: { promo_template: null, wa_footer: null },
   invitations: { label: null, expires_at: '2099-12-31T00:00:00.000Z', accepted_by: null },
 }
 
@@ -72,7 +84,9 @@ function compare(a: unknown, b: unknown): number {
 
 /**
  * Browser-only persistence (localStorage). Used for "Mode Demo" when Supabase is not configured,
- * and for unit tests. Data never leaves the device.
+ * and for unit tests. Data never leaves the device. The integrity rules of supabase/schema.sql
+ * (cascade / set null / restrict on delete, the order and payment guards) are mirrored here so Mode
+ * Demo behaves like the database; the role rules (SPEC 3.10) live in the action hooks.
  */
 export class LocalRepo implements Repo {
   readonly mode = 'local' as const
@@ -147,6 +161,8 @@ export class LocalRepo implements Repo {
       if (hasUpdatedAt(table)) full.updated_at = (row as { updated_at?: string }).updated_at ?? now
       return full as unknown as Row<T>
     })
+    // like the database: the whole statement fails, nothing is written
+    for (const r of created) this.guardWrite(table, r as unknown as Record<string, unknown>, null)
     ;(this.db[table] as Row<T>[]).push(...created)
     saveDb(this.db)
     return created.map((r) => ({ ...r }))
@@ -158,6 +174,7 @@ export class LocalRepo implements Repo {
     if (idx < 0) throw new Error(UPDATE_DENIED_MESSAGE)
     const next = { ...rows[idx], ...patch } as Record<string, unknown>
     if (hasUpdatedAt(table)) next.updated_at = new Date().toISOString()
+    this.guardWrite(table, next, rows[idx] as unknown as Record<string, unknown>)
     rows[idx] = next as unknown as Row<T>
     saveDb(this.db)
     return { ...rows[idx] }
@@ -169,13 +186,92 @@ export class LocalRepo implements Repo {
     // like SupabaseRepo: deleting nothing is an error, never a silent success
     if (idx < 0) throw new Error(DELETE_DENIED_MESSAGE)
     if (this.isReferenced(table, id)) throw new Error(IN_USE_MESSAGE)
+    // payments_limit: removing an item may not leave the order paid above its total
+    if (table === 'order_items') this.assertPaidWithinTotal((rows[idx] as unknown as Row<'order_items'>).order_id, { removeItem: id })
     rows.splice(idx, 1)
+    this.cascadeDelete(table, id)
     saveDb(this.db)
   }
 
-  /** Mirror the database's ON DELETE RESTRICT rules so demo mode behaves like online mode (the laundry modules add theirs). */
-  private isReferenced(_table: TableName, _id: string): boolean {
-    return false
+  /** Mirror the database's ON DELETE RESTRICT rules so demo mode behaves like online mode. */
+  private isReferenced(table: TableName, id: string): boolean {
+    switch (table) {
+      case 'customers':
+        return this.db.orders.some((o) => o.customer_id === id) || this.db.customer_packages.some((p) => p.customer_id === id)
+      case 'services':
+        return this.db.package_catalog.some((c) => c.service_id === id) || this.db.customer_packages.some((p) => p.service_id === id)
+      case 'customer_packages':
+        return this.db.order_items.some((i) => i.customer_package_id === id)
+      default:
+        return false
+    }
+  }
+
+  /** ON DELETE CASCADE / SET NULL of the schema. */
+  private cascadeDelete(table: TableName, id: string): void {
+    switch (table) {
+      case 'orders':
+        this.db.order_items = this.db.order_items.filter((i) => i.order_id !== id)
+        this.db.payments = this.db.payments.filter((p) => p.order_id !== id)
+        break
+      case 'services':
+        for (const i of this.db.order_items) if (i.service_id === id) i.service_id = null
+        break
+      case 'package_catalog':
+        for (const p of this.db.customer_packages) if (p.catalog_id === id) p.catalog_id = null
+        break
+      default:
+        break
+    }
+  }
+
+  /**
+   * The integrity triggers of schema.sql (orders_cancel_guard, payments_limit, package_use_guard), raised
+   * with the same texts before anything is written. `before` is the stored row for an update, null for an insert.
+   */
+  private guardWrite(table: TableName, next: Record<string, unknown>, before: Record<string, unknown> | null): void {
+    if (table === 'orders') {
+      const status = next.status as string
+      if (status === 'cancelled' && before && before.status !== 'cancelled') {
+        if (before.status !== 'received' && before.status !== 'processing') throw new Error(CANCEL_STATUS_MESSAGE)
+        if (this.db.payments.some((p) => p.order_id === next.id)) throw new Error(CANCEL_WITH_PAYMENTS_MESSAGE)
+      }
+      if (before && next.discount !== before.discount) this.assertPaidWithinTotal(next.id as string, { discount: next.discount as number })
+      return
+    }
+    if (table === 'payments') {
+      this.assertPaidWithinTotal(next.order_id as string, { extraPayment: next as unknown as Row<'payments'>, replaces: before?.id as string | undefined })
+      return
+    }
+    if (table === 'order_items') {
+      const item = next as unknown as Row<'order_items'>
+      if (item.customer_package_id) this.assertPackageUse(item)
+      if (before) this.assertPaidWithinTotal(item.order_id, { replaceItem: item })
+    }
+  }
+
+  private assertPaidWithinTotal(
+    orderId: string,
+    change: { discount?: number; extraPayment?: Row<'payments'>; replaces?: string; replaceItem?: Row<'order_items'>; removeItem?: string },
+  ): void {
+    const order = this.db.orders.find((o) => o.id === orderId)
+    if (!order) return
+    const dropped = change.replaceItem?.id ?? change.removeItem
+    let items = dropped ? this.db.order_items.filter((i) => i.id !== dropped) : this.db.order_items
+    if (change.replaceItem) items = [...items, change.replaceItem]
+    const payments = change.extraPayment ? [...this.db.payments.filter((p) => p.id !== change.replaces), change.extraPayment] : this.db.payments
+    const t = orderTotals({ ...order, discount: change.discount ?? order.discount }, items, payments)
+    if (t.paid > t.total) throw new Error(PAYMENT_EXCEEDS_TOTAL_MESSAGE)
+  }
+
+  private assertPackageUse(item: Row<'order_items'>): void {
+    const pkg = this.db.customer_packages.find((p) => p.id === item.customer_package_id)
+    const order = this.db.orders.find((o) => o.id === item.order_id)
+    if (!pkg || !order) return
+    const problem = packageProblem(pkg, order.customer_id, item.service_id ?? '', order.received_at)
+    if (problem) throw new Error(problem)
+    const others = this.db.order_items.filter((i) => i.id !== item.id)
+    if (roundQty(item.qty) > packageRemaining(pkg, others, this.db.orders)) throw new Error(PACKAGE_INSUFFICIENT_MESSAGE)
   }
 
   async ensureMembership(user: { id: string; email: string | null }): Promise<string> {
@@ -244,8 +340,16 @@ export class LocalRepo implements Repo {
   }
 }
 
-// tables with an updated_at column (the laundry modules add theirs)
-const TABLES_WITH_UPDATED_AT: ReadonlySet<TableName> = new Set<TableName>([])
+// tables with an updated_at column
+const TABLES_WITH_UPDATED_AT: ReadonlySet<TableName> = new Set<TableName>([
+  'services',
+  'customers',
+  'orders',
+  'order_items',
+  'package_catalog',
+  'customer_packages',
+  'payments',
+])
 
 function hasUpdatedAt(table: TableName): boolean {
   return TABLES_WITH_UPDATED_AT.has(table)

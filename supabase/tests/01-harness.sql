@@ -239,6 +239,27 @@ begin
   perform zz.eq(p_grp, 'every storage policy covers the logos bucket', 'storage_org_delete,storage_org_insert,storage_org_select,storage_org_update',
     (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'storage' and tablename = 'objects'
       and policyname like 'storage_org_%' and (coalesce(qual, '') || coalesce(with_check, '')) like '%''logos''%'));
-  -- audit triggers on the three core tables (the laundry modules add theirs)
-  perform zz.chk(p_grp, 'audit trigger on every audited table', '^3$', (select count(*)::text from pg_trigger where tgname = 'audit_row_change'));
+  -- audit triggers on the three core tables and the seven laundry tables
+  perform zz.chk(p_grp, 'audit trigger on every audited table', '^10$', (select count(*)::text from pg_trigger where tgname = 'audit_row_change'));
+  perform zz.eq(p_grp, 'every laundry table is audited, timestamped and pinned to its organisation',
+    'customer_packages,customers,order_items,orders,package_catalog,payments,services',
+    (select string_agg(c.relname, ',' order by c.relname) from pg_class c
+      where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+        and exists (select 1 from pg_trigger where tgrelid = c.oid and tgname = 'audit_row_change')
+        and exists (select 1 from pg_trigger where tgrelid = c.oid and tgname = 'set_updated_at')
+        and exists (select 1 from pg_trigger where tgrelid = c.oid and tgname = 'keep_org_id')));
+  perform zz.eq(p_grp, 'laundry guards in place', 'order_items:orders_done_guard,order_items:package_use_guard,order_items:payments_limit,orders:orders_cancel_guard,orders:orders_done_guard,orders:orders_package_guard,orders:payments_limit,payments:payments_limit,payments:set_created_by',
+    (select string_agg(c.relname || ':' || t.tgname, ',' order by c.relname, t.tgname) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+      where t.tgname in ('orders_done_guard', 'orders_cancel_guard', 'payments_limit', 'package_use_guard', 'orders_package_guard', 'set_created_by')
+        and c.relname <> 'organizations'));
+  -- the laundry's unique order number and its composite foreign keys (no row can point into another organisation)
+  perform zz.ok(p_grp, 'orders: unique (org_id, order_number)', exists (
+    select 1 from pg_constraint where conrelid = 'public.orders'::regclass and contype = 'u' and conname = 'orders_org_id_order_number_key'));
+  perform zz.eq(p_grp, 'every laundry foreign key to a laundry parent is composite on org_id',
+    'customer_packages>customers:r,customer_packages>package_catalog:n,customer_packages>services:r,order_items>customer_packages:r,order_items>orders:c,order_items>services:n,orders>customers:r,package_catalog>services:r,payments>orders:c',
+    (select string_agg(c.relname || '>' || p.relname || ':' || con.confdeltype::text, ',' order by c.relname, p.relname)
+       from pg_constraint con join pg_class c on c.oid = con.conrelid join pg_class p on p.oid = con.confrelid
+      where con.contype = 'f' and c.relnamespace = 'public'::regnamespace and p.relname <> 'organizations'
+        and c.relname in ('services', 'customers', 'orders', 'order_items', 'package_catalog', 'customer_packages', 'payments')
+        and (select attname from pg_attribute where attrelid = con.conrelid and attnum = con.conkey[1]) = 'org_id'));
 end $$;

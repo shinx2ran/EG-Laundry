@@ -12,6 +12,16 @@ insert into zz.ids select 'org', id from public.organizations;
 select zz.eq('seed', 'laundry renamed', 'ok:1', zz.att(zz.id('owner'),
   format('update public.organizations set name = %L where id = %L', 'EG Laundry Cadangan', zz.id('org')), true));
 select zz.eq('seed', 'invitation', '8', length(zz.invite('inv', zz.id('owner'), zz.id('org'), 'staff', 'Penjaga'))::text);
+-- a little laundry data, through the API as the owner
+insert into zz.ids values ('b_svc', 'b2500000-0000-0000-0000-000000000001'), ('b_cust', 'b2500000-0000-0000-0000-000000000002'),
+  ('b_ord', 'b2500000-0000-0000-0000-000000000003'), ('b_cat', 'b2500000-0000-0000-0000-000000000004'), ('b_pkg', 'b2500000-0000-0000-0000-000000000005');
+select zz.eq('seed', 'service', 'ok:1', zz.att(zz.id('owner'), format('insert into public.services (id, org_id, name, unit, price) values (%L, %L, %L, %L, 8000)', zz.id('b_svc'), zz.id('org'), 'Cuci setrika', 'kg'), true));
+select zz.eq('seed', 'customer', 'ok:1', zz.att(zz.id('owner'), format('insert into public.customers (id, org_id, name, phone) values (%L, %L, %L, %L)', zz.id('b_cust'), zz.id('org'), 'Rina', '0812-0000-0001'), true));
+select zz.eq('seed', 'order', 'ok:1', zz.att(zz.id('owner'), format('insert into public.orders (id, org_id, order_number, customer_id, received_at) values (%L, %L, %L, %L, %L)', zz.id('b_ord'), zz.id('org'), 'LD-202610-0001', zz.id('b_cust'), '2026-10-19'), true));
+select zz.eq('seed', 'item', 'ok:1', zz.att(zz.id('owner'), format('insert into public.order_items (org_id, order_id, service_id, service_name, unit, unit_price, qty, line_total) values (%L, %L, %L, %L, %L, 8000, 2.5, 20000)', zz.id('org'), zz.id('b_ord'), zz.id('b_svc'), 'Cuci setrika', 'kg'), true));
+select zz.eq('seed', 'payment', 'ok:1', zz.att(zz.id('owner'), format('insert into public.payments (org_id, order_id, amount, paid_at, method) values (%L, %L, 20000, %L, %L)', zz.id('org'), zz.id('b_ord'), '2026-10-19', 'qris'), true));
+select zz.eq('seed', 'catalog', 'ok:1', zz.att(zz.id('owner'), format('insert into public.package_catalog (id, org_id, name, service_id, qty, price, valid_days) values (%L, %L, %L, %L, 20, 140000, 60)', zz.id('b_cat'), zz.id('org'), 'Paket 20 kg', zz.id('b_svc')), true));
+select zz.eq('seed', 'sold package', 'ok:1', zz.att(zz.id('owner'), format('insert into public.customer_packages (id, org_id, customer_id, catalog_id, name, service_id, qty_total, price, purchased_at, expires_at) values (%L, %L, %L, %L, %L, %L, 20, 140000, %L, %L)', zz.id('b_pkg'), zz.id('org'), zz.id('b_cust'), zz.id('b_cat'), 'Paket 20 kg', zz.id('b_svc'), '2026-10-01', '2026-11-30'), true));
 
 do $$
 declare
@@ -23,10 +33,19 @@ begin
     (select string_agg(k, ',' order by k) from jsonb_object_keys(f) k));
   perform zz.eq('export', 'version 1', '1', f ->> 'version');
   perform zz.eq('export', 'organisation name', 'EG Laundry Cadangan', f ->> 'orgName');
-  perform zz.eq('export', 'all organisation tables', 'audit_log,invitations,organization_members,organizations',
+  perform zz.eq('export', 'all organisation tables', 'audit_log,customer_packages,customers,invitations,order_items,orders,organization_members,organizations,package_catalog,payments,services',
     (select string_agg(k, ',' order by k) from jsonb_object_keys(f -> 'tables') k));
   perform zz.eq('export', 'invitation row', 'Penjaga', f -> 'tables' -> 'invitations' -> 0 ->> 'label');
   perform zz.eq('export', 'members', '1', jsonb_array_length(f -> 'tables' -> 'organization_members')::text);
+  perform zz.eq('export', 'laundry rows: one of each', '1,1,1,1,1,1,1', concat_ws(',',
+    jsonb_array_length(f -> 'tables' -> 'services'), jsonb_array_length(f -> 'tables' -> 'customers'), jsonb_array_length(f -> 'tables' -> 'orders'),
+    jsonb_array_length(f -> 'tables' -> 'order_items'), jsonb_array_length(f -> 'tables' -> 'package_catalog'),
+    jsonb_array_length(f -> 'tables' -> 'customer_packages'), jsonb_array_length(f -> 'tables' -> 'payments')));
+  perform zz.eq('export', 'order row as the app stores it', 'LD-202610-0001|' || zz.id('b_cust') || '|received|0',
+    (f -> 'tables' -> 'orders' -> 0 ->> 'order_number') || '|' || (f -> 'tables' -> 'orders' -> 0 ->> 'customer_id') || '|' || (f -> 'tables' -> 'orders' -> 0 ->> 'status') || '|' || (f -> 'tables' -> 'orders' -> 0 ->> 'discount'));
+  perform zz.eq('export', 'item qty keeps its decimals, the payment its author', '2.50|' || zz.id('owner'),
+    (f -> 'tables' -> 'order_items' -> 0 ->> 'qty') || '|' || (f -> 'tables' -> 'payments' -> 0 ->> 'created_by'));
+  perform zz.eq('export', 'organisation row carries the WhatsApp texts', 'true', (f -> 'tables' -> 'organizations' -> 0 ? 'promo_template' and f -> 'tables' -> 'organizations' -> 0 ? 'wa_footer')::text);
   perform zz.ok('export', 'history included', jsonb_array_length(f -> 'tables' -> 'audit_log') > 0);
   perform zz.ok('export', 'no code hashes anywhere', position(encode(sha256(convert_to('BACKUP25', 'UTF8')), 'hex') in b::text) = 0
     and not (f -> 'tables' ? 'invitation_codes') and not (f -> 'tables' ? 'app_settings') and not (f -> 'tables' ? 'join_attempts'));

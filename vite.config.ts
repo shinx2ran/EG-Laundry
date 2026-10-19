@@ -33,6 +33,8 @@ function swHandover(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   base,
+  // own cache per working tree, so parallel checkouts (git worktrees) never share node_modules/.vite
+  cacheDir: './.vite',
   plugins: [
     react(),
     tailwindcss(),

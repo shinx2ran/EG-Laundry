@@ -5,12 +5,27 @@
  */
 import { differenceInCalendarDays } from 'date-fns'
 import { formatDate, formatDateTime, formatNumber, formatRupiah, parseDate } from '../../../lib/format'
-import { MEMBER_ROLE_LABEL, type AuditAction, type AuditLogEntry, type OrganizationMember } from '../../../types/db'
+import {
+  MEMBER_ROLE_LABEL,
+  ORDER_STATUS_LABEL,
+  PAYMENT_METHOD_LABEL,
+  UNIT_LABEL,
+  type AuditAction,
+  type AuditLogEntry,
+  type OrganizationMember,
+} from '../../../types/db'
 
 export const AUDIT_TABLE_LABEL: Record<string, string> = {
   organizations: 'Laundry',
   organization_members: 'Anggota',
   invitations: 'Undangan',
+  services: 'Daftar harga',
+  customers: 'Pelanggan',
+  orders: 'Pesanan',
+  order_items: 'Item pesanan',
+  package_catalog: 'Katalog paket',
+  customer_packages: 'Paket pelanggan',
+  payments: 'Pembayaran',
 }
 
 export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
@@ -24,13 +39,13 @@ export const SYSTEM_ACTOR = 'Sistem/Operator'
 /** A member who has since been removed and whose email is unknown. */
 export const FORMER_MEMBER_ACTOR = 'Mantan anggota'
 
-const MONEY_COLUMNS = new Set(['amount', 'total_amount', 'discount_amount', 'paid_amount', 'price', 'unit_price', 'subtotal'])
+const MONEY_COLUMNS = new Set(['amount', 'total_amount', 'discount_amount', 'paid_amount', 'price', 'price_express', 'unit_price', 'line_total', 'discount', 'subtotal'])
 
 /** Bookkeeping columns that never say anything to the owner. */
 const IGNORED_COLUMNS = new Set(['id', 'org_id', 'created_at', 'updated_at', 'created_by'])
 
 /** Long free text: say that it changed instead of quoting it. */
-const TEXT_COLUMNS = new Set(['notes'])
+const TEXT_COLUMNS = new Set(['notes', 'address', 'promo_template', 'wa_footer'])
 
 /** Storage paths: added / replaced / removed. */
 const FILE_COLUMNS = new Set(['logo_path'])
@@ -62,6 +77,36 @@ const COLUMN_LABEL: Record<string, string> = {
   unit: 'Satuan',
   logo_path: 'Logo',
   notes: 'Catatan',
+  price_express: 'Harga express',
+  line_total: 'Subtotal item',
+  discount: 'Diskon',
+  qty: 'Jumlah',
+  qty_total: 'Isi paket',
+  min_qty: 'Minimal',
+  days_regular: 'Hari reguler',
+  days_express: 'Hari express',
+  sort_order: 'Urutan',
+  active: 'Aktif',
+  express: 'Express',
+  order_number: 'Nomor',
+  received_at: 'Masuk',
+  promised_at: 'Perkiraan selesai',
+  ready_at: 'Siap',
+  picked_up_at: 'Diambil',
+  paid_at: 'Tanggal bayar',
+  purchased_at: 'Tanggal beli',
+  valid_days: 'Masa berlaku (hari)',
+  is_tenant: 'Anak kos',
+  room_name: 'Kamar',
+  kos_tenant_id: 'Id penyewa kos',
+  service_name: 'Layanan',
+  customer_id: 'Pelanggan',
+  service_id: 'Layanan',
+  order_id: 'Pesanan',
+  catalog_id: 'Katalog',
+  customer_package_id: 'Paket',
+  promo_template: 'Template promo',
+  wa_footer: 'Footer WhatsApp',
 }
 
 /** Money first (what the owner checks), then status and names; anything else after, alphabetically. */
@@ -69,10 +114,14 @@ const COLUMN_ORDER = [...MONEY_COLUMNS, 'status', 'method', 'role', 'name', 'ful
 
 const ENUM_LABELS: Record<string, Record<string, string>> = {
   role: MEMBER_ROLE_LABEL,
+  method: PAYMENT_METHOD_LABEL,
+  unit: UNIT_LABEL,
 }
 
-/** Per table: how a `status` value reads; the laundry modules add theirs. */
-const STATUS_LABELS: Record<string, Record<string, string>> = {}
+/** Per table: how a `status` value reads. */
+const STATUS_LABELS: Record<string, Record<string, string>> = {
+  orders: ORDER_STATUS_LABEL,
+}
 
 /** Resolves a referenced id (user_id, customer_id, ...) to a readable name; null when unknown. */
 export type RefResolver = (column: string, id: string) => string | null
@@ -198,6 +247,16 @@ export function auditSubject(table: string, data: Data | null, resolve?: RefReso
       return join(str(data, 'email') ?? ref('user_id'), enumText(MEMBER_ROLE_LABEL, str(data, 'role')))
     case 'invitations':
       return join(str(data, 'label') ?? str(data, 'email'), enumText(MEMBER_ROLE_LABEL, str(data, 'role')))
+    case 'orders':
+      return join(str(data, 'order_number'), ref('customer_id'), enumText(ORDER_STATUS_LABEL, str(data, 'status')))
+    case 'order_items':
+      return join(ref('order_id'), str(data, 'service_name'))
+    case 'payments': {
+      const amount = asMoney(data.amount)
+      return join(ref('order_id'), amount === null ? null : formatRupiah(amount), enumText(PAYMENT_METHOD_LABEL, str(data, 'method')))
+    }
+    case 'customer_packages':
+      return join(ref('customer_id'), str(data, 'name'))
     default:
       return str(data, 'name') ?? str(data, 'full_name')
   }

@@ -40,6 +40,14 @@ begin
     format('select public.create_invitation(%L, %L, %L)', zz.id('org1'), 'staff', 'x')));
   perform zz.eq('reapply', 'staff still cannot rename the laundry', 'ok:0', zz.att(zz.id('after'), 'update public.organizations set name = ''x'''));
   perform zz.chk('reapply', 'owner still cannot delete history', '^err:42501', zz.att(zz.id('owner'), 'delete from public.audit_log'));
+  -- laundry rules survive a re-run too
+  perform zz.eq('reapply', 'staff still cannot change the price list', 'ok:0', zz.att(zz.id('after'), 'update public.services set price = 1'));
+  perform zz.chk('reapply', 'staff still cannot touch a done order', 'hanya bisa diubah pemilik/admin', zz.att(zz.id('after'),
+    format('update public.orders set notes = ''x'' where id = %L', zz.id('ord_done'))));
+  perform zz.chk('reapply', 'payments still cannot exceed the total', 'Pembayaran melebihi total pesanan', zz.att(zz.id('after'),
+    format('insert into public.payments (org_id, order_id, amount, paid_at) values (%L, %L, 1, %L)', zz.id('org1'), zz.id('ord_done'), '2026-10-19')));
+  perform zz.eq('reapply', 'staff still records an order', 'ok:1', zz.att(zz.id('after'),
+    format('insert into public.orders (org_id, order_number, customer_id, received_at) values (%L, %L, %L, %L)', zz.id('org1'), 'LD-209912-0001', zz.id('cust_rina'), '2099-12-01')));
 end $$;
 select zz.check_structure('reapply-structure');
 drop table zz.snap_counts, zz.snap_audit, zz.snap_settings;

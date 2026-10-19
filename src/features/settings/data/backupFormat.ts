@@ -21,6 +21,13 @@ export const TABLE_LABEL: Record<TableName, string> = {
   organization_members: 'Anggota',
   invitations: 'Undangan',
   audit_log: 'Riwayat perubahan',
+  services: 'Daftar harga',
+  customers: 'Pelanggan',
+  orders: 'Pesanan',
+  order_items: 'Item pesanan',
+  package_catalog: 'Katalog paket',
+  customer_packages: 'Paket pelanggan',
+  payments: 'Pembayaran',
 }
 
 /** Thrown with a message that can be shown to the user as is. */
@@ -105,8 +112,8 @@ export function backupToLocalDb(backup: ParsedBackup): LocalDb {
   return { ...backup.tables } as unknown as LocalDb
 }
 
-/** Short Indonesian summary, e.g. "2 anggota, 1 undangan". */
+/** Short Indonesian summary, e.g. "12 pelanggan, 40 pesanan, 6 layanan, 2 anggota". */
 export function describeBackup(backup: ParsedBackup): string {
   const t = backup.tables
-  return [`${t.organization_members.length} anggota`, `${t.invitations.length} undangan`].join(', ')
+  return [`${t.customers.length} pelanggan`, `${t.orders.length} pesanan`, `${t.services.length} layanan`, `${t.organization_members.length} anggota`].join(', ')
 }

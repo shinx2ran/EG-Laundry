@@ -17,9 +17,9 @@ mkdir -p "$LOG_DIR"
 export PGOPTIONS="${PGOPTIONS:-} -c client_min_messages=warning"
 
 T=supabase/tests
-SUITES="$T/01-harness.sql $T/10-schema-tests.sql $T/25-backup.sql"
+SUITES="$T/01-harness.sql $T/10-schema-tests.sql $T/20-laundry.sql $T/25-backup.sql"
 FRESH="$T/00-mock-supabase.sql supabase/schema.sql $SUITES"
-TWICE="$T/00-mock-supabase.sql supabase/schema.sql supabase/schema.sql $T/01-harness.sql $T/10-schema-tests.sql $T/30-reapply.sql $T/25-backup.sql"
+TWICE="$T/00-mock-supabase.sql supabase/schema.sql supabase/schema.sql $T/01-harness.sql $T/10-schema-tests.sql $T/20-laundry.sql $T/30-reapply.sql $T/25-backup.sql"
 
 failed=0
 summary=""

@@ -4,6 +4,9 @@ node_modules
 # Build output
 dist
 dist-ssr
+# per-checkout TypeScript / Vite caches (parallel working trees must not share them)
+.tsbuild
+.vite
 dev-dist
 *.local
 

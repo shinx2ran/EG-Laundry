@@ -48,6 +48,29 @@ export function toDateISO(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+/** 'YYYY-MM-DD' + n days -> 'YYYY-MM-DD' (calendar days, local time, no DST drift). */
+export function addDaysISO(iso: string, days: number): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  return toDateISO(new Date(y, m - 1, d + days))
+}
+
+/** Calendar days from `fromISO` to `toISO` ('YYYY-MM-DD'); negative when `toISO` is earlier. */
+export function daysBetween(fromISO: string, toISO: string): number {
+  const at = (iso: string) => {
+    const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+    return Date.UTC(y, m - 1, d)
+  }
+  return Math.round((at(toISO) - at(fromISO)) / 86_400_000)
+}
+
+const qtyNumber = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 })
+
+/** 2.5 + 'kg' -> '2,5 kg'; 1 + 'pcs' -> '1 pcs' (Indonesian decimal comma, at most 2 decimals). */
+export function formatQty(qty: number | null | undefined, unit: string): string {
+  const n = qty == null || Number.isNaN(qty) ? 0 : qty
+  return `${qtyNumber.format(n)} ${unit}`.replace(/ /g, ' ')
+}
+
 /** 'YYYY-MM-DD' or ISO timestamp -> Date (local). Returns null when invalid. */
 export function parseDate(value: string | null | undefined): Date | null {
   if (!value) return null

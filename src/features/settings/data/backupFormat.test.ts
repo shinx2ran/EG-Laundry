@@ -90,6 +90,6 @@ describe('backupToLocalDb', () => {
 describe('describeBackup', () => {
   it('summarises the main tables', () => {
     const parsed = parseBackupText(JSON.stringify(buildDemoDb(new Date(2026, 9, 12))))
-    expect(describeBackup(parsed)).toBe('1 anggota, 0 undangan')
+    expect(describeBackup(parsed)).toBe('12 pelanggan, 40 pesanan, 6 layanan, 1 anggota')
   })
 })

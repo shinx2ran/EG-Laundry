@@ -1,5 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, formatDateTime, formatMonth, formatNumber, formatRupiah, normalizePhone, parseCount, parseRupiah, todayISO, toDateISO, whatsappLink } from './format'
+import {
+  addDaysISO,
+  daysBetween,
+  formatDate,
+  formatDateTime,
+  formatMonth,
+  formatNumber,
+  formatQty,
+  formatRupiah,
+  normalizePhone,
+  parseCount,
+  parseRupiah,
+  todayISO,
+  toDateISO,
+  whatsappLink,
+} from './format'
+
+describe('quantities', () => {
+  it('writes kg with an Indonesian decimal comma and pcs whole', () => {
+    expect(formatQty(2.5, 'kg')).toBe('2,5 kg')
+    expect(formatQty(3, 'kg')).toBe('3 kg')
+    expect(formatQty(1.25, 'kg')).toBe('1,25 kg')
+    expect(formatQty(1, 'pcs')).toBe('1 pcs')
+    expect(formatQty(null, 'kg')).toBe('0 kg')
+  })
+})
+
+describe('calendar arithmetic', () => {
+  it('adds calendar days across month, year and DST boundaries', () => {
+    expect(addDaysISO('2026-10-19', 3)).toBe('2026-10-22')
+    expect(addDaysISO('2026-10-30', 3)).toBe('2026-11-02')
+    expect(addDaysISO('2026-12-31', 1)).toBe('2027-01-01')
+    expect(addDaysISO('2026-03-01', -1)).toBe('2026-02-28')
+    expect(addDaysISO('2028-02-28', 1)).toBe('2028-02-29')
+    expect(addDaysISO('2026-10-19T10:00:00Z', 0)).toBe('2026-10-19')
+  })
+
+  it('counts days between dates, negative backwards', () => {
+    expect(daysBetween('2026-10-19', '2026-10-22')).toBe(3)
+    expect(daysBetween('2026-10-22', '2026-10-19')).toBe(-3)
+    expect(daysBetween('2026-01-01', '2026-12-31')).toBe(364)
+    expect(daysBetween('2026-10-19', '2026-10-19')).toBe(0)
+  })
+})
 
 describe('money', () => {
   it('formats Rupiah without decimals and with a plain space', () => {

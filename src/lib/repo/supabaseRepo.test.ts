@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { SupabaseRepo, translateDbError } from './supabaseRepo'
-import { DELETE_DENIED_MESSAGE, IN_USE_MESSAGE, UPDATE_DENIED_MESSAGE } from './types'
+import { DELETE_DENIED_MESSAGE, IN_USE_MESSAGE, ORDER_NUMBER_TAKEN_MESSAGE, UPDATE_DENIED_MESSAGE } from './types'
 
 type Result = { data: unknown; error: { message: string; code?: string; details?: string } | null }
 
@@ -27,12 +27,21 @@ const fk = (table: string, constraint: string, child: string) => ({
 })
 
 describe('translateDbError', () => {
+  it('a duplicate order number (two phones at once) tells the caller to retry', () => {
+    const dup = { code: '23505', message: 'duplicate key value violates unique constraint "orders_org_id_order_number_key"', details: 'Key (org_id, order_number)=(..., LD-202610-0007) already exists.' }
+    expect(translateDbError(dup)).toBe(ORDER_NUMBER_TAKEN_MESSAGE)
+    expect(translateDbError(dup.message)).toBe(ORDER_NUMBER_TAKEN_MESSAGE)
+    // other unique violations keep their text
+    const other = { code: '23505', message: 'duplicate key value violates unique constraint "organization_members_org_id_user_id_key"' }
+    expect(translateDbError(other)).toBe(other.message)
+  })
+
   it('a delete refused because the row is still in use is Indonesian', () => {
     for (const e of [
-      fk('rooms', 'leases_org_id_room_id_fkey', 'leases'),
-      fk('tenants', 'leases_org_id_tenant_id_fkey', 'leases'),
-      fk('properties', 'rooms_org_id_property_id_fkey', 'rooms'),
-      fk('invoices', 'payments_org_id_invoice_id_fkey', 'payments'),
+      fk('customers', 'orders_org_id_customer_id_fkey', 'orders'),
+      fk('customers', 'customer_packages_org_id_customer_id_fkey', 'customer_packages'),
+      fk('services', 'package_catalog_org_id_service_id_fkey', 'package_catalog'),
+      fk('customer_packages', 'order_items_org_id_customer_package_id_fkey', 'order_items'),
     ]) {
       expect(translateDbError(e)).toBe(IN_USE_MESSAGE)
       // callers that only kept the message text
@@ -42,7 +51,7 @@ describe('translateDbError', () => {
 
   it('leaves other errors as they were', () => {
     // a missing parent on insert is a different problem, not "still in use"
-    const insertFk = { code: '23503', message: 'insert or update on table "leases" violates foreign key constraint "leases_org_id_room_id_fkey"', details: 'Key (...) is not present in table "rooms".' }
+    const insertFk = { code: '23503', message: 'insert or update on table "orders" violates foreign key constraint "orders_org_id_customer_id_fkey"', details: 'Key (...) is not present in table "customers".' }
     expect(translateDbError(insertFk)).toBe(insertFk.message)
     expect(translateDbError({ code: '42501', message: 'new row violates row-level security policy for table "payments"' })).toBe('Anda tidak memiliki izin untuk tindakan ini.')
     expect(translateDbError('TypeError: Failed to fetch')).toBe('Tidak dapat terhubung ke server. Periksa koneksi internet.')
@@ -63,7 +72,7 @@ describe('SupabaseRepo.remove', () => {
   })
 
   it('a row still in use gives the Indonesian message', async () => {
-    const { repo } = fakeClient({ data: null, error: fk('rooms', 'leases_org_id_room_id_fkey', 'leases') })
+    const { repo } = fakeClient({ data: null, error: fk('customers', 'orders_org_id_customer_id_fkey', 'orders') })
     await expect(repo.remove('invitations', 'x', 'org-1')).rejects.toThrow(IN_USE_MESSAGE)
   })
 })

@@ -33,6 +33,23 @@ export const UPDATE_DENIED_MESSAGE = 'Data tidak ditemukan atau Anda tidak memil
 export const DELETE_DENIED_MESSAGE = 'Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.'
 /** ON DELETE RESTRICT: another row still points at the one being deleted. */
 export const IN_USE_MESSAGE = 'Data ini masih dipakai oleh data lain dan tidak dapat dihapus.'
+/** unique (org_id, order_number) hit (two phones at the same moment): the caller retries with the next number. */
+export const ORDER_NUMBER_TAKEN_MESSAGE = 'Nomor pesanan sudah dipakai. Coba lagi.'
+
+// Texts of the laundry triggers in supabase/schema.sql; LocalRepo raises the same ones in Mode Demo.
+/** orders_done_guard: a done/cancelled order and its items are frozen for staff. */
+export const DONE_ORDER_ADMIN_MESSAGE = 'Pesanan yang sudah selesai hanya bisa diubah pemilik/admin.'
+/** orders_cancel_guard: delete the payments first (admin). */
+export const CANCEL_WITH_PAYMENTS_MESSAGE = 'Pesanan yang sudah ada pembayarannya tidak dapat dibatalkan.'
+/** orders_cancel_guard: only Diterima/Proses can be cancelled (SPEC 3.3). */
+export const CANCEL_STATUS_MESSAGE = 'Pesanan hanya dapat dibatalkan selama Diterima/Proses.'
+/** payments_limit: the sum of payments never exceeds the order total. */
+export const PAYMENT_EXCEEDS_TOTAL_MESSAGE = 'Pembayaran melebihi total pesanan.'
+/** package_use_guard (SPEC 3.4) */
+export const PACKAGE_OTHER_CUSTOMER_MESSAGE = 'Paket ini milik pelanggan lain.'
+export const PACKAGE_OTHER_SERVICE_MESSAGE = 'Paket ini tidak berlaku untuk layanan tersebut.'
+export const PACKAGE_EXPIRED_MESSAGE = 'Paket sudah kedaluwarsa pada tanggal masuk pesanan.'
+export const PACKAGE_INSUFFICIENT_MESSAGE = 'Sisa paket tidak cukup.'
 
 export interface CreatedInvitation {
   /** plain code, formatted 'ABCD-EFGH'; shown once, the database keeps only a hash */
