@@ -31,7 +31,7 @@ export function SettingsPage() {
         <OrganizationCard orgId={org.id} orgName={org.name} role={role} isAdmin={isAdmin} isLocalMode={isLocalMode} />
         {/* SPEC 3.7-3.10: owner/admin only; staff does not see these cards and their hooks refuse */}
         {isAdmin && <WhatsAppCard />}
-        <MembersCard isAdmin={isAdmin} currentUserId={session?.user.id ?? ''} />
+        {isAdmin && <MembersCard isAdmin currentUserId={session?.user.id ?? ''} />}
         <PriceListCard isAdmin={isAdmin} />
         {isAdmin && <TenantImportCard />}
         <DataCard isLocalMode={isLocalMode} isAdmin={isAdmin} />
