@@ -13,7 +13,6 @@ import {
   intakeText,
   lateText,
   localDay,
-  methodsShown,
   moneyInByDay,
   moneyInSeries,
   orderLink,
@@ -101,12 +100,6 @@ describe('uang masuk (SPEC 3.5: payments by paid_at + packages by purchased_at)'
     const series = moneyInSeries('2026-03-02', [payment('x', 1_000, '2026-02-27')], [], 4)
     expect(series.map((d) => d.date)).toEqual(['2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02'])
     expect(series[0].total).toBe(1_000)
-  })
-
-  it('shows the methods that brought money in, all three on an empty day', () => {
-    expect(methodsShown({ total: 15_000, byMethod: { cash: 0, transfer: 0, qris: 15_000 } })).toEqual(['qris'])
-    expect(methodsShown({ total: 25_000, byMethod: { cash: 10_000, transfer: 0, qris: 15_000 } })).toEqual(['cash', 'qris'])
-    expect(methodsShown({ total: 0, byMethod: { cash: 0, transfer: 0, qris: 0 } })).toEqual(['cash', 'transfer', 'qris'])
   })
 })
 

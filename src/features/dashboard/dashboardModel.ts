@@ -11,7 +11,6 @@
  * Order arithmetic (totals, outstanding, late) comes from src/domain/pricing.
  */
 import type { Customer, CustomerPackage, Order, OrderItem, Payment, PaymentMethod, Service } from '../../types/db'
-import { PAYMENT_METHODS } from '../../types/db'
 import { isOrderLate, orderTotals, roundQty, type OrderTotals } from '../../domain/pricing'
 import { itemsSummary } from '../../domain/messages'
 import { addDaysISO, daysBetween, formatDate, formatNumber, formatQty, formatRupiah, toDateISO } from '../../lib/format'
@@ -131,12 +130,6 @@ export function moneyInSeries(
   days = SERIES_DAYS,
 ): MoneyIn[] {
   return moneyInByDay(addDaysISO(today, -(days - 1)), today, payments, packages)
-}
-
-/** The methods that brought money in, in the fixed order Tunai, Transfer, QRIS; all three when nothing came in. */
-export function methodsShown(money: Pick<MoneyIn, 'byMethod' | 'total'>): PaymentMethod[] {
-  if (money.total <= 0) return [...PAYMENT_METHODS]
-  return PAYMENT_METHODS.filter((m) => money.byMethod[m] > 0)
 }
 
 // ---------- orders ----------
