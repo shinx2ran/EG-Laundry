@@ -26,26 +26,35 @@ function emptyDb(): Db {
   return db
 }
 
-function loadDb(): Db {
+function parseDb(raw: string): Db {
+  const parsed = JSON.parse(raw) as Partial<Db>
+  const db = emptyDb()
+  for (const t of TABLE_NAMES) {
+    const rows = parsed[t]
+    if (Array.isArray(rows)) (db as Record<string, unknown[]>)[t] = rows.map((r) => withColumnDefaults(t, r as unknown as Record<string, unknown>))
+  }
+  return db
+}
+
+function readStored(): string | null {
+  return globalThis.localStorage?.getItem(STORAGE_KEY) ?? null
+}
+
+/** The stored database and the text it was read from (null: nothing stored, or unreadable and set aside). */
+function loadDb(): { db: Db; raw: string | null } {
   try {
-    const raw = globalThis.localStorage?.getItem(STORAGE_KEY)
-    if (!raw) return emptyDb()
-    const parsed = JSON.parse(raw) as Partial<Db>
-    const db = emptyDb()
-    for (const t of TABLE_NAMES) {
-      const rows = parsed[t]
-      if (Array.isArray(rows)) (db as Record<string, unknown[]>)[t] = rows.map((r) => withColumnDefaults(t, r as unknown as Record<string, unknown>))
-    }
-    return db
+    const raw = readStored()
+    if (!raw) return { db: emptyDb(), raw: null }
+    return { db: parseDb(raw), raw }
   } catch {
     // keep unreadable data for recovery; the demo seed would otherwise overwrite it on start
     try {
-      const raw = globalThis.localStorage?.getItem(STORAGE_KEY)
+      const raw = readStored()
       if (raw) globalThis.localStorage?.setItem(`${STORAGE_KEY}.corrupt`, raw)
     } catch {
       // storage blocked or full
     }
-    return emptyDb()
+    return { db: emptyDb(), raw: null }
   }
 }
 
@@ -63,9 +72,12 @@ function withColumnDefaults(table: TableName, row: Record<string, unknown>): Rec
   return next
 }
 
-function saveDb(db: Db) {
+/** Saves the whole database; returns the text stored. */
+function saveDb(db: Db): string {
+  const raw = JSON.stringify(db)
   try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(db))
+    globalThis.localStorage?.setItem(STORAGE_KEY, raw)
+    return raw
   } catch (err) {
     console.error('Gagal menyimpan data lokal', err)
     throw new Error('Penyimpanan browser penuh atau tidak tersedia.')
@@ -87,19 +99,66 @@ function compare(a: unknown, b: unknown): number {
  * and for unit tests. Data never leaves the device. The integrity rules of supabase/schema.sql
  * (cascade / set null / restrict on delete, the order and payment guards) are mirrored here so Mode
  * Demo behaves like the database; the role rules (SPEC 3.10) live in the action hooks.
+ *
+ * Every write saves the whole database, and another copy of the app on this device (a second tab, the installed
+ * PWA next to a browser tab) shares the same storage: an instance read from storage therefore takes the stored
+ * data again before each write (refresh), so it never saves an old copy over the other one's orders and
+ * payments, and watchOtherCopies keeps its screens current. An instance given `initial` data stays in memory.
  */
 export class LocalRepo implements Repo {
   readonly mode = 'local' as const
   private db: Db
+  private readonly fromStorage: boolean
+  /** the text last read from or written to storage: unchanged storage is not parsed again */
+  private stored: string | null = null
 
   constructor(initial?: Db) {
-    this.db = initial ?? loadDb()
+    this.fromStorage = initial === undefined
+    if (initial) {
+      this.db = initial
+    } else {
+      const loaded = loadDb()
+      this.db = loaded.db
+      this.stored = loaded.raw
+    }
+  }
+
+  /** Take what another copy of the app saved since this one last read or wrote (nothing stored / unreadable: keep memory). */
+  private refresh(): void {
+    if (!this.fromStorage) return
+    try {
+      const raw = readStored()
+      if (raw === null || raw === this.stored) return
+      this.db = parseDb(raw)
+      this.stored = raw
+    } catch {
+      // storage blocked or unreadable: keep what is in memory
+    }
+  }
+
+  private save(): void {
+    this.stored = saveDb(this.db)
+  }
+
+  /**
+   * Calls `onChange` after another copy of the app on this device saved (the browser's 'storage' event), with
+   * this instance already holding the new data. Returns the unsubscribe.
+   */
+  watchOtherCopies(onChange: () => void): () => void {
+    if (!this.fromStorage || typeof window === 'undefined') return () => undefined
+    const handler = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY && e.key !== null) return
+      this.refresh()
+      onChange()
+    }
+    window.addEventListener('storage', handler)
+    return () => window.removeEventListener('storage', handler)
   }
 
   /** Replace everything (used by demo seeding / reset). */
   replaceAll(db: Db) {
     this.db = db
-    saveDb(this.db)
+    this.save()
   }
 
   snapshot(): Db {
@@ -151,6 +210,7 @@ export class LocalRepo implements Repo {
   }
 
   async insertMany<T extends TableName>(table: T, rows: Insert<T>[]): Promise<Row<T>[]> {
+    this.refresh()
     const now = new Date().toISOString()
     const created = rows.map((row) => {
       const full = {
@@ -164,11 +224,12 @@ export class LocalRepo implements Repo {
     // like the database: the whole statement fails, nothing is written
     for (const r of created) this.guardWrite(table, r as unknown as Record<string, unknown>, null)
     ;(this.db[table] as Row<T>[]).push(...created)
-    saveDb(this.db)
+    this.save()
     return created.map((r) => ({ ...r }))
   }
 
   async update<T extends TableName>(table: T, id: string, patch: Update<T>, orgId?: string): Promise<Row<T>> {
+    this.refresh()
     const rows = this.db[table] as Row<T>[]
     const idx = rows.findIndex((r) => r.id === id && (!orgId || rec(r).org_id === orgId))
     if (idx < 0) throw new Error(UPDATE_DENIED_MESSAGE)
@@ -176,11 +237,12 @@ export class LocalRepo implements Repo {
     if (hasUpdatedAt(table)) next.updated_at = new Date().toISOString()
     this.guardWrite(table, next, rows[idx] as unknown as Record<string, unknown>)
     rows[idx] = next as unknown as Row<T>
-    saveDb(this.db)
+    this.save()
     return { ...rows[idx] }
   }
 
   async remove<T extends TableName>(table: T, id: string, orgId?: string): Promise<void> {
+    this.refresh()
     const rows = this.db[table] as Row<T>[]
     const idx = rows.findIndex((r) => r.id === id && (!orgId || rec(r).org_id === orgId))
     // like SupabaseRepo: deleting nothing is an error, never a silent success
@@ -190,7 +252,7 @@ export class LocalRepo implements Repo {
     if (table === 'order_items') this.assertPaidWithinTotal((rows[idx] as unknown as Row<'order_items'>).order_id, { removeItem: id })
     rows.splice(idx, 1)
     this.cascadeDelete(table, id)
-    saveDb(this.db)
+    this.save()
   }
 
   /** Mirror the database's ON DELETE RESTRICT rules so demo mode behaves like online mode. */
@@ -322,6 +384,7 @@ export class LocalRepo implements Repo {
   }
 
   async setMemberRole(orgId: string, userId: string, role: MemberRole): Promise<void> {
+    this.refresh()
     const members = this.db.organization_members.filter((m) => m.org_id === orgId)
     const target = members.find((m) => m.user_id === userId)
     if (!target) throw new Error('Anggota tidak ditemukan.')
@@ -329,14 +392,15 @@ export class LocalRepo implements Repo {
       throw new Error('Tidak dapat mengubah peran pemilik terakhir.')
     }
     target.role = role
-    saveDb(this.db)
+    this.save()
   }
 
   async removeMember(orgId: string, userId: string): Promise<void> {
+    this.refresh()
     this.db.organization_members = this.db.organization_members.filter(
       (m) => !(m.org_id === orgId && m.user_id === userId),
     )
-    saveDb(this.db)
+    this.save()
   }
 }
 

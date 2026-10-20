@@ -98,6 +98,13 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
     [orgId, queryClient],
   )
 
+  // Mode Demo: another copy of the app on this device (a second tab, the installed PWA) saved: show its data here too.
+  useEffect(() => {
+    const raw = repo?.raw
+    if (!(raw instanceof LocalRepo)) return
+    return raw.watchOtherCopies(() => void queryClient.invalidateQueries())
+  }, [repo, queryClient])
+
   // An invitation link opened by a member: the join screen never shows, so drop the code here.
   const isMember = membership.isSuccess
   useEffect(() => {

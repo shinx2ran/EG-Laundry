@@ -170,3 +170,85 @@ describe('LocalRepo mirrors the laundry schema (guards)', () => {
     expect(packageRemaining(pkg, await repo.list('order_items'), await repo.list('orders'))).toBe(1)
   })
 })
+
+describe('LocalRepo shared by two copies of the app on one device', () => {
+  afterEach(() => localStorage.clear())
+
+  const order = (id: string, number: string) => ({
+    id,
+    org_id: DEMO_ORG_ID,
+    order_number: number,
+    customer_id: 'demo-cust-01',
+    received_at: '2026-10-19',
+    promised_at: null,
+    express: false,
+    status: 'received' as const,
+    ready_at: null,
+    picked_up_at: null,
+    discount: 0,
+    notes: null,
+  })
+
+  /** The installed PWA and a browser tab: each loaded the same stored data once. */
+  function twoCopies() {
+    new LocalRepo().replaceAll(buildDemoDb(new Date(2026, 9, 19)))
+    return { pwa: new LocalRepo(), tab: new LocalRepo() }
+  }
+
+  it('a write in one copy keeps what the other copy saved meanwhile', async () => {
+    const { pwa, tab } = twoCopies()
+    // the tab records an order with a DP
+    await tab.insert('orders', order('tab-order', 'LD-202610-0999'))
+    await tab.insert('order_items', {
+      org_id: DEMO_ORG_ID, order_id: 'tab-order', service_id: DEMO_SERVICE_ID.cuciSetrika, service_name: 'Cuci setrika', unit: 'kg', unit_price: 8_000, qty: 2, line_total: 16_000, customer_package_id: null, notes: null,
+    })
+    await tab.insert('payments', { id: 'tab-dp', org_id: DEMO_ORG_ID, order_id: 'tab-order', amount: 10_000, paid_at: '2026-10-19', method: 'cash', notes: 'DP', created_by: null })
+    // the PWA, still holding what it loaded at start, changes another order and records one
+    const [other] = (await pwa.list('orders')).filter((o) => o.id !== 'tab-order')
+    await pwa.update('orders', other.id, { notes: 'dari PWA' })
+    await pwa.insert('orders', order('pwa-order', 'LD-202610-0998'))
+
+    const stored = new LocalRepo()
+    expect(await stored.get('orders', 'tab-order')).not.toBeNull()
+    expect(await stored.get('payments', 'tab-dp')).toMatchObject({ amount: 10_000 })
+    expect(await stored.get('orders', 'pwa-order')).not.toBeNull()
+    expect((await stored.get('orders', other.id))?.notes).toBe('dari PWA')
+    // and the guards see the other copy's rows
+    expect(await pwa.get('orders', 'tab-order')).not.toBeNull()
+    await pwa.remove('orders', 'tab-order')
+    expect(await new LocalRepo().get('orders', 'tab-order')).toBeNull()
+  })
+
+  it('a restore (replaceAll) in one copy is not overwritten by the next write in the other', async () => {
+    const { pwa, tab } = twoCopies()
+    const restored = buildDemoDb(new Date(2026, 9, 19))
+    restored.orders = restored.orders.slice(0, 3)
+    restored.order_items = restored.order_items.filter((i) => restored.orders.some((o) => o.id === i.order_id))
+    restored.payments = restored.payments.filter((p) => restored.orders.some((o) => o.id === p.order_id))
+    tab.replaceAll(restored)
+    await pwa.update('customers', 'demo-cust-01', { notes: 'x' })
+    expect(await new LocalRepo().list('orders')).toHaveLength(3)
+  })
+
+  it('the storage event of another copy reloads this one and tells the screens', async () => {
+    const { pwa, tab } = twoCopies()
+    let changes = 0
+    const stop = pwa.watchOtherCopies(() => changes++)
+    await tab.insert('orders', order('tab-order', 'LD-202610-0999'))
+    window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
+    expect(changes).toBe(1)
+    expect(await pwa.get('orders', 'tab-order')).not.toBeNull()
+    window.dispatchEvent(new StorageEvent('storage', { key: 'eglaundry.lamaTidakDatang' }))
+    expect(changes).toBe(1)
+    stop()
+    window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }))
+    expect(changes).toBe(1)
+  })
+
+  it('an instance given its own data stays in memory (tests, previews)', async () => {
+    new LocalRepo().replaceAll(buildDemoDb(new Date(2026, 9, 19)))
+    const memory = new LocalRepo(emptyLocalDb())
+    await memory.insert('organizations', { id: 'o-mem', name: 'Memori', created_by: 'u', promo_template: null, wa_footer: null })
+    expect(await memory.list('orders')).toHaveLength(0)
+  })
+})
