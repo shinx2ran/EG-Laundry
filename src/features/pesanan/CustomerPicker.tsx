@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Phone, UserPlus, X } from 'lucide-react'
 import { Button, Input, useToast } from '../../components/ui'
 import type { Customer, Order } from '../../types/db'
@@ -35,6 +35,8 @@ export function CustomerPicker({ customers, orders, value, onChange, onCreate, c
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [saving, setSaving] = useState(false)
+  // Enter pressed again while the first save is still on its way must not add the customer twice
+  const savingRef = useRef(false)
 
   if (value) {
     return (
@@ -68,6 +70,8 @@ export function CustomerPicker({ customers, orders, value, onChange, onCreate, c
   }
 
   const save = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
     setSaving(true)
     try {
       const created = await onCreate({ name, phone })
@@ -78,6 +82,7 @@ export function CustomerPicker({ customers, orders, value, onChange, onCreate, c
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal menambah pelanggan.')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }

@@ -210,8 +210,7 @@ export function currentLease(leases: readonly WoombadLease[], dateISO: string): 
 export function phoneKey(phone: string | null | undefined): string | null {
   const normalized = normalizePhone(phone)
   if (!normalized) return null
-  let digits = normalized.replace(/\D/g, '')
-  if (digits.startsWith('620')) digits = `62${digits.slice(3)}` // '+62 0812…'
+  const digits = normalized.replace(/\D/g, '')
   return digits.length >= 9 ? digits : null
 }
 

@@ -120,11 +120,16 @@ export function formatMonth(yyyyMm: string): string {
   return d ? dfFormat(d, 'MMM yyyy', { locale: localeId }) : yyyyMm
 }
 
-/** Indonesian phone normaliser: '0812-3456-7890' -> '+6281234567890' (best effort). */
+/**
+ * Indonesian phone normaliser: '0812-3456-7890' -> '+6281234567890' (best effort). A 0 typed after the country
+ * code ('+62 0812…', how Woombad can store a tenant's number) is the trunk prefix and goes, so the WhatsApp link
+ * reaches the real number.
+ */
 export function normalizePhone(input: string | null | undefined): string | null {
   if (!input) return null
   let digits = input.replace(/[^0-9+]/g, '')
   if (!digits) return null
+  if (/^\+?620/.test(digits)) digits = `+62${digits.replace(/^\+?620/, '')}`
   if (digits.startsWith('+')) return digits
   if (digits.startsWith('62')) return `+${digits}`
   if (digits.startsWith('0')) digits = digits.slice(1)

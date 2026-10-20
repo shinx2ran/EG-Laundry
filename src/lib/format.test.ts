@@ -96,12 +96,17 @@ describe('phones and WhatsApp', () => {
     expect(normalizePhone('0812-3456-7890')).toBe('+6281234567890')
     expect(normalizePhone('62812 3456 7890')).toBe('+6281234567890')
     expect(normalizePhone('+6281234567890')).toBe('+6281234567890')
+    // a 0 after the country code (Woombad stores '+62081234567890') is the trunk prefix
+    expect(normalizePhone('+62 0812-3456-7890')).toBe('+6281234567890')
+    expect(normalizePhone('62 0812 3456 7890')).toBe('+6281234567890')
+    expect(normalizePhone('+62081234567890')).toBe('+6281234567890')
     expect(normalizePhone('-')).toBeNull()
     expect(normalizePhone(null)).toBeNull()
   })
 
   it('builds wa.me links with the message encoded', () => {
     expect(whatsappLink('081234567890')).toBe('https://wa.me/6281234567890')
+    expect(whatsappLink('+62 0812-3456-7890')).toBe('https://wa.me/6281234567890')
     expect(whatsappLink('081234567890', 'Cucian Anda siap diambil & terima kasih')).toBe(
       'https://wa.me/6281234567890?text=Cucian%20Anda%20siap%20diambil%20%26%20terima%20kasih',
     )
