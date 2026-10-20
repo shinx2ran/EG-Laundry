@@ -726,6 +726,23 @@ drop trigger if exists orders_package_guard on public.orders;
 create trigger orders_package_guard before update of customer_id, status, received_at on public.orders
   for each row execute function public.orders_package_guard();
 
+-- A sold package is money already counted (SPEC 3.4, 3.5: its price is uang masuk on purchased_at): staff record
+-- the sale and may fix its note, every other change (price, method, dates, qty, customer, service, ...) is a
+-- correction for the owner/admin, like changing a payment (SPEC 2.2, 3.10). The app itself never edits a sale.
+create or replace function public.customer_packages_guard()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if auth.uid() is not null and not public.is_org_admin(old.org_id)
+     and (to_jsonb(new) - 'notes' - 'updated_at') is distinct from (to_jsonb(old) - 'notes' - 'updated_at') then
+    raise exception 'Paket yang sudah terjual hanya bisa diubah pemilik/admin.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists customer_packages_guard on public.customer_packages;
+create trigger customer_packages_guard before update on public.customer_packages
+  for each row execute function public.customer_packages_guard();
+
 -- ---------- audit log ----------
 -- Append-only history written by triggers. Owners/admins can read it; nobody can change it via the API.
 

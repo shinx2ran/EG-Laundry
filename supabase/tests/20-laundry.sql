@@ -227,6 +227,20 @@ begin
   perform zz.chk('packages', 'a package for a customer of another laundry is refused (composite FK)', '^err:23503', zz.att(s, format(
     'insert into public.customer_packages (org_id, customer_id, name, service_id, qty_total, price) values (%L, %L, %L, %L, 1, 1)', org, zz.id('cust2'), 'x', zz.id('svc_setrika'))));
   perform zz.eq('packages', 'staff may fix a note on the sold package', 'ok:1', zz.att(s, format('update public.customer_packages set notes = ''bayar transfer'' where id = %L', zz.id('pkg1'))));
+  -- anything else on a sale is a money correction (customer_packages_guard): owner/admin only
+  perform zz.eq('packages', 'staff cannot zero the price of a sold package', 'err:P0001:Paket yang sudah terjual hanya bisa diubah pemilik/admin.',
+    zz.att(s, format('update public.customer_packages set price = 0 where id = %L', zz.id('pkg1'))));
+  perform zz.eq('packages', '... nor change its method or purchase date', 'err:P0001:Paket yang sudah terjual hanya bisa diubah pemilik/admin.',
+    zz.att(s, format('update public.customer_packages set method = ''qris'', purchased_at = ''2026-09-01'' where id = %L', zz.id('pkg1'))));
+  perform zz.eq('packages', '... nor move it to another customer', 'err:P0001:Paket yang sudah terjual hanya bisa diubah pemilik/admin.',
+    zz.att(s, format('update public.customer_packages set customer_id = %L where id = %L', zz.id('cust_hendra'), zz.id('pkg1'))));
+  perform zz.eq('packages', '... nor raise its qty or extend it', 'err:P0001:Paket yang sudah terjual hanya bisa diubah pemilik/admin.',
+    zz.att(s, format('update public.customer_packages set qty_total = 200, expires_at = null where id = %L', zz.id('pkg1'))));
+  perform zz.eq('packages', '... nor together with a note', 'err:P0001:Paket yang sudah terjual hanya bisa diubah pemilik/admin.',
+    zz.att(s, format('update public.customer_packages set notes = ''x'', price = 1 where id = %L', zz.id('pkg1'))));
+  perform zz.eq('packages', 'admin corrects the price of a sold package', 'ok:1', zz.att(a, format('update public.customer_packages set price = 135000 where id = %L', zz.id('pkg1'))));
+  perform zz.eq('packages', 'operator (no auth.uid) corrects it too', 'val:1', zz.su(format('with u as (update public.customer_packages set price = 135000 where id = %L returning 1) select count(*) from u', zz.id('pkg1'))));
+  perform zz.eq('packages', 'the price stayed as sold', '140000', (select price::text from public.customer_packages where id = zz.id('pkg1')));
   perform zz.eq('packages', 'staff cannot delete a sold package', 'ok:0', zz.att(s, format('delete from public.customer_packages where id = %L', zz.id('pkg1'))));
 
   perform zz.eq('packages', 'staff records an order for Rina', 'ok:1', zz.att(s, format(ord, zz.id('ord_pkg'), org, 'LD-202610-0004', zz.id('cust_rina'), '2026-10-19'), true));
