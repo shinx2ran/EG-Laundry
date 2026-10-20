@@ -47,6 +47,7 @@ export function PelangganDetailPage() {
   const [sellOpen, setSellOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [packageToDelete, setPackageToDelete] = useState<CustomerPackage | null>(null)
   const today = todayISO()
 
   const customer = id ? data.customerById.get(id) : undefined
@@ -95,6 +96,20 @@ export function PelangganDetailPage() {
       setDeleteOpen(false)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const confirmDeletePackage = async () => {
+    if (!packageToDelete) return
+    setDeleting(true)
+    try {
+      await actions.deletePackage(packageToDelete)
+      toast.success(`Paket ${packageToDelete.name} dihapus.`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal menghapus paket.')
+    } finally {
+      setDeleting(false)
+      setPackageToDelete(null)
     }
   }
 
@@ -177,7 +192,15 @@ export function PelangganDetailPage() {
               ) : (
                 <ul className="divide-y divide-slate-100">
                   {myPackages.map((p) => (
-                    <PackageRow key={p.id} pkg={p} remaining={packageRemaining(p, data.orderItems, data.orders)} unit={data.serviceById.get(p.service_id)?.unit ?? 'kg'} today={today} />
+                    <PackageRow
+                      key={p.id}
+                      pkg={p}
+                      remaining={packageRemaining(p, data.orderItems, data.orders)}
+                      unit={data.serviceById.get(p.service_id)?.unit ?? 'kg'}
+                      today={today}
+                      // a sale made by mistake: owner/admin only, and only while no order item uses it (FK restrict)
+                      onDelete={actions.isAdmin && !data.orderItems.some((i) => i.customer_package_id === p.id) ? () => setPackageToDelete(p) : undefined}
+                    />
                   ))}
                 </ul>
               )}
@@ -203,6 +226,21 @@ export function PelangganDetailPage() {
         </div>
       </div>
 
+      <ConfirmDialog
+        open={packageToDelete !== null}
+        onClose={() => setPackageToDelete(null)}
+        onConfirm={confirmDeletePackage}
+        loading={deleting}
+        title="Hapus paket terjual?"
+        message={
+          packageToDelete && (
+            <>
+              <strong>{packageToDelete.name}</strong> ({formatRupiah(packageToDelete.price)}, dibeli {formatDate(packageToDelete.purchased_at)}) dihapus dari {c.name} dan
+              tidak lagi dihitung sebagai uang masuk. Gunakan ini untuk penjualan yang salah catat.
+            </>
+          )
+        }
+      />
       <CustomerFormModal open={editOpen || askPhone} onClose={closeEdit} customer={c} actions={actions} focusPhone={askPhone} />
       <SellPackageModal open={sellOpen} onClose={() => setSellOpen(false)} customer={c} catalog={data.packageCatalog} serviceById={data.serviceById} actions={actions} isAdmin={actions.isAdmin} />
 
@@ -239,7 +277,7 @@ export function PelangganDetailPage() {
   )
 }
 
-function PackageRow({ pkg, remaining, unit, today }: { pkg: CustomerPackage; remaining: number; unit: string; today: string }) {
+function PackageRow({ pkg, remaining, unit, today, onDelete }: { pkg: CustomerPackage; remaining: number; unit: string; today: string; onDelete?: () => void }) {
   const state = packageState(pkg, remaining, today)
   return (
     <li data-testid="package-row" className="px-4 py-3">
@@ -257,6 +295,11 @@ function PackageRow({ pkg, remaining, unit, today }: { pkg: CustomerPackage; rem
         {pkg.expires_at ? `Berlaku s/d ${formatDate(pkg.expires_at)}` : 'Tanpa kedaluwarsa'} · dibeli {formatDate(pkg.purchased_at)} · {PAYMENT_METHOD_LABEL[pkg.method]} · {formatRupiah(pkg.price)}
       </p>
       {pkg.notes && <p className="mt-0.5 text-xs text-slate-500">{pkg.notes}</p>}
+      {onDelete && (
+        <Button variant="ghost" size="sm" icon={<Trash2 className="h-4 w-4" />} className="mt-1 h-11 text-red-700 hover:bg-red-50" onClick={onDelete} aria-label={`Hapus paket ${pkg.name}`}>
+          Hapus paket
+        </Button>
+      )}
     </li>
   )
 }

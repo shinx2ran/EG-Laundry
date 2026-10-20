@@ -19,6 +19,7 @@ import {
 } from './customerUtils'
 
 export const STAFF_DELETE_CUSTOMER_MESSAGE = 'Hanya pemilik/admin yang dapat menghapus pelanggan.'
+export const STAFF_DELETE_PACKAGE_MESSAGE = 'Hanya pemilik/admin yang dapat menghapus paket terjual.'
 export const CATALOG_MISSING_MESSAGE = 'Paket tidak ditemukan di katalog.'
 
 export interface SellPackageInput {
@@ -96,7 +97,21 @@ export function useCustomerActions() {
       return row
     }
 
-    return { isAdmin, canDeleteCustomers, createCustomer, updateCustomer, deleteCustomer, sellPackage }
+    /**
+     * Owner/admin only (SPEC 2.2, 3.10): undo a package sold by mistake (wrong customer or wrong package), so its
+     * price no longer counts as uang masuk. A package that an order item uses is refused (FK restrict,
+     * IN_USE_MESSAGE): change those orders first.
+     */
+    async function deletePackage(pkg: Pick<CustomerPackage, 'id'>): Promise<void> {
+      if (!isAdmin) throw new Error(STAFF_DELETE_PACKAGE_MESSAGE)
+      try {
+        await repo.remove('customer_packages', pkg.id)
+      } finally {
+        await invalidate('customer_packages')
+      }
+    }
+
+    return { isAdmin, canDeleteCustomers, createCustomer, updateCustomer, deleteCustomer, sellPackage, deletePackage }
   }, [repo, role, invalidate])
 }
 

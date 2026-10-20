@@ -110,9 +110,16 @@ test.describe('Pelanggan (Mode Demo, 360px)', () => {
     await expect(pkg).toContainText('QRIS')
     await expect(pkg.getByText('Aktif')).toBeVisible()
 
-    // a customer whose package is partly used shows what is left (Rudi: 20 - 3 - 4)
+    // sold by mistake: the owner removes the unused sale again
+    await pkg.getByRole('button', { name: 'Hapus paket Paket 20 kg cuci setrika' }).click()
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Hapus paket terjual?' })).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Hapus', exact: true }).click()
+    await expect(page.getByTestId('package-row')).toHaveCount(0)
+
+    // a customer whose package is partly used shows what is left (Rudi: 20 - 3 - 4); in use, it cannot be removed
     await page.goto('/pelanggan/demo-cust-10')
     await expect(page.getByTestId('package-row')).toContainText('Sisa 13 kg dari 20 kg')
+    await expect(page.getByTestId('package-row').getByRole('button', { name: /Hapus paket/ })).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 })

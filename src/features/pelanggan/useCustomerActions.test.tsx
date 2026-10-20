@@ -15,7 +15,7 @@ vi.mock('../../hooks/useOrg', () => ({
 }))
 vi.mock('../../hooks/useTable', () => ({ useInvalidate: () => invalidate }))
 
-import { CATALOG_MISSING_MESSAGE, STAFF_DELETE_CUSTOMER_MESSAGE, useCustomerActions } from './useCustomerActions'
+import { CATALOG_MISSING_MESSAGE, STAFF_DELETE_CUSTOMER_MESSAGE, STAFF_DELETE_PACKAGE_MESSAGE, useCustomerActions } from './useCustomerActions'
 
 let local: LocalRepo
 let repo: OrgRepo
@@ -100,6 +100,30 @@ describe('deleteCustomer (SPEC 3.10: owner/admin only)', () => {
     expect(await byId('demo-cust-01')).not.toBeNull()
     // refreshed after each refusal too (the row may be gone on another device): create, delete, 2 refusals
     expect(invalidate).toHaveBeenCalledTimes(4)
+  })
+})
+
+describe('deletePackage (a sale made by mistake; owner/admin only)', () => {
+  const sellTo = async (customerId: string) => {
+    const catalog = (await repo.get('package_catalog', DEMO_CATALOG_ID))!
+    return actions().sellPackage({ customer: { id: customerId }, catalog, purchasedAt: '2026-10-19', method: 'cash', notes: '' })
+  }
+
+  it('staff is refused before any write', async () => {
+    seed('staff')
+    const sold = await sellTo('demo-cust-11')
+    await expect(actions().deletePackage(sold)).rejects.toThrow(STAFF_DELETE_PACKAGE_MESSAGE)
+    expect(await repo.get('customer_packages', sold.id)).not.toBeNull()
+  })
+
+  it('admin removes an unused sale, so it no longer counts as uang masuk; a package in use is "masih dipakai"', async () => {
+    seed('admin')
+    const sold = await sellTo('demo-cust-11')
+    await actions().deletePackage(sold)
+    expect(await repo.get('customer_packages', sold.id)).toBeNull()
+    expect(invalidate).toHaveBeenCalledWith('customer_packages')
+    await expect(actions().deletePackage({ id: 'demo-pkg-rudi' })).rejects.toThrow(IN_USE_MESSAGE)
+    expect(await repo.get('customer_packages', 'demo-pkg-rudi')).not.toBeNull()
   })
 })
 
