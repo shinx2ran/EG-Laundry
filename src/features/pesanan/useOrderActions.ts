@@ -174,7 +174,7 @@ export function useOrderActions() {
     /**
      * New order (SPEC 3.3): validates the draft (customer, items, express prices, packages, discount, DP), prices
      * the items as copies of the services, numbers the order, then writes order -> items -> payment. A failed
-     * items insert removes the header again (best effort: staff cannot delete online); a failed payment leaves the
+     * items insert removes the header again (staff cannot delete online: then it is cancelled); a failed payment leaves the
      * order and reports it (PartialSaveError).
      */
     async function createOrder(input: CreateOrderInput, ctx: ActionContext): Promise<CreateOrderResult> {
@@ -213,7 +213,8 @@ export function useOrderActions() {
           priced.map((p) => ({ order_id: order.id, ...itemPatch(p) })),
         )
       } catch (err) {
-        await repo.remove('orders', order.id).catch(() => undefined)
+        // staff may not delete online: an empty order that cannot be removed is at least cancelled
+        await repo.remove('orders', order.id).catch(() => repo.update('orders', order.id, { status: 'cancelled' }).catch(() => undefined))
         await invalidate('orders', 'order_items')
         throw err
       }

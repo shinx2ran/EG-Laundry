@@ -212,6 +212,25 @@ describe('createOrder', () => {
     expect(invalidate).toHaveBeenCalledWith('orders', 'order_items')
   })
 
+  it('cancels the empty header when it may not be removed either (staff online)', async () => {
+    const before = await ctx()
+    state.role = 'staff'
+    state.repo = {
+      ...repo,
+      insertMany: (async () => {
+        throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet.')
+      }) as OrgRepo['insertMany'],
+      remove: (async () => {
+        throw new Error(DELETE_DENIED_MESSAGE)
+      }) as OrgRepo['remove'],
+    }
+    await expect(actions().createOrder({ customer_id: RINA, received_at: today, express: false, discount: 0, items: basket }, before)).rejects.toThrow('koneksi')
+    const after = await repo.list('orders')
+    expect(after).toHaveLength(before.orders.length + 1)
+    const orphan = after.find((o) => !before.orders.some((b) => b.id === o.id))
+    expect(orphan?.status).toBe('cancelled')
+  })
+
   it('keeps the order and reports it when only the payment fails', async () => {
     const before = await ctx()
     state.repo = {

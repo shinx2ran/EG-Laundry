@@ -27,6 +27,7 @@ import {
   payNowCaption,
   paymentExceedsMessage,
   paymentProblem,
+  parseDetailAction,
   paymentRoom,
   pickCustomers,
   sortOrdersNewest,
@@ -210,6 +211,15 @@ describe('offeredActions (detail page buttons)', () => {
     expect(keys('done', { isAdmin: true })).toEqual(['edit', 'delete'])
     expect(keys('cancelled', { isAdmin: true })).toEqual(['edit', 'delete'])
     expect(keys('received', { isAdmin: true })).toEqual(['process', 'ready', 'edit', 'cancel', 'delete'])
+  })
+})
+
+describe('detail deep links', () => {
+  it('?aksi=diambil and ?aksi=bayar open their dialogs; anything else none', () => {
+    expect(parseDetailAction('diambil')).toBe('pickup')
+    expect(parseDetailAction('bayar')).toBe('pay')
+    expect(parseDetailAction('hapus')).toBeNull()
+    expect(parseDetailAction(null)).toBeNull()
   })
 })
 

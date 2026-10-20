@@ -176,6 +176,16 @@ export function offeredActions(order: Pick<Order, 'status'>, ctx: { hasPayments:
   return out
 }
 
+/**
+ * Deep links into the detail page's dialogs, e.g. from the Dashboard's "siap diambil" list:
+ * /pesanan/:id?aksi=diambil opens Diambil, ?aksi=bayar opens Terima pembayaran; anything else opens nothing.
+ */
+export function parseDetailAction(value: string | null | undefined): 'pickup' | 'pay' | null {
+  if (value === 'diambil') return 'pickup'
+  if (value === 'bayar') return 'pay'
+  return null
+}
+
 /** 'Lunas' / 'DP · sisa Rp 25.000' for the Bayar sekarang box; '' when nothing is paid. */
 export function payNowCaption(amount: number, total: number): string {
   if (!(amount > 0)) return ''

@@ -197,6 +197,12 @@ test.describe('Pesanan (Mode Demo, 360 px)', () => {
 
   test('cancel is refused with a payment; staff sees no Hapus and no payment corrections', async ({ page }) => {
     await loginDemo(page)
+    // the Dashboard's deep link opens Diambil straight away (demo-order-04: Bu Wati, Siap, unpaid Rp 52.000)
+    await page.goto('/pesanan/demo-order-04?aksi=diambil')
+    await expect(page.getByRole('dialog').getByLabel('Jumlah')).toHaveValue('52.000')
+    await page.getByRole('dialog').getByRole('button', { name: 'Batal' }).click()
+    await expect(page).toHaveURL(/\/pesanan\/demo-order-04$/)
+
     // demo-order-02: Dimas, Proses, paid in full -> Batalkan is shown but off
     await page.goto('/pesanan/demo-order-02')
     await expect(page.getByRole('button', { name: 'Batalkan', exact: true })).toBeDisabled()

@@ -7,7 +7,7 @@ import { useOrg } from '../../hooks/useOrg'
 import { useLaundryData } from '../../hooks/useLaundryData'
 import { PAYMENT_METHOD_LABEL, type Payment } from '../../types/db'
 import { formatDate, formatDateTime, formatQty, formatRupiah, todayISO, whatsappLink } from '../../lib/format'
-import { dateLine, offeredActions, orderReadyText, orderReceiptText, type OfferedAction, type OrderAction } from './orderUtils'
+import { dateLine, offeredActions, orderReadyText, orderReceiptText, parseDetailAction, type OfferedAction, type OrderAction } from './orderUtils'
 import { ExpressBadge, LateBadge, MissingPhoneLink, OrderStatusBadge, PayStatusBadge, Row, TenantBadge, WhatsAppLink } from './components'
 import { EditPaymentModal, PickupModal, ReceivePaymentModal } from './OrderModals'
 import { EditOrderModal } from './EditOrderModal'
@@ -56,7 +56,11 @@ export function OrderDetailPage() {
   const toast = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const [dialog, setDialog] = useState<Dialog | null>(null)
+  // ?aksi=diambil / ?aksi=bayar (Dashboard) open that dialog once the order is there and allows it
+  const [dialog, setDialog] = useState<Dialog | null>(() => {
+    const kind = parseDetailAction(params.get('aksi'))
+    return kind ? { kind } : null
+  })
   const [busy, setBusy] = useState<OrderAction | 'confirm' | null>(null)
   const today = todayISO()
   const isAdmin = actions.isAdmin
@@ -147,6 +151,15 @@ export function OrderDetailPage() {
       toast.error(err instanceof Error ? err.message : 'Gagal memproses.')
     } finally {
       setBusy(null)
+    }
+  }
+
+  const closeDialog = () => {
+    setDialog(null)
+    if (params.has('aksi')) {
+      const next = new URLSearchParams(params)
+      next.delete('aksi')
+      setParams(next, { replace: true })
     }
   }
 
@@ -367,13 +380,13 @@ export function OrderDetailPage() {
         </Card>
       </div>
 
-      {dialog?.kind === 'pay' && <ReceivePaymentModal order={order} totals={totals} ctx={data} actions={actions} onClose={() => setDialog(null)} />}
-      {dialog?.kind === 'pickup' && <PickupModal order={order} totals={totals} customer={customer} ctx={data} actions={actions} onClose={() => setDialog(null)} />}
-      {dialog?.kind === 'edit' && <EditOrderModal order={order} items={items} data={data} actions={actions} onClose={() => setDialog(null)} />}
-      {dialog?.kind === 'edit-payment' && <EditPaymentModal payment={dialog.payment} order={order} ctx={data} actions={actions} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'pay' && totals.outstanding > 0 && !cancelled && <ReceivePaymentModal order={order} totals={totals} ctx={data} actions={actions} onClose={closeDialog} />}
+      {dialog?.kind === 'pickup' && order.status === 'ready' && <PickupModal order={order} totals={totals} customer={customer} ctx={data} actions={actions} onClose={closeDialog} />}
+      {dialog?.kind === 'edit' && <EditOrderModal order={order} items={items} data={data} actions={actions} onClose={closeDialog} />}
+      {dialog?.kind === 'edit-payment' && <EditPaymentModal payment={dialog.payment} order={order} ctx={data} actions={actions} onClose={closeDialog} />}
       <ConfirmDialog
         open={dialog?.kind === 'cancel'}
-        onClose={() => setDialog(null)}
+        onClose={closeDialog}
         onConfirm={() => void runConfirm()}
         loading={busy === 'confirm'}
         title="Batalkan pesanan?"
@@ -383,7 +396,7 @@ export function OrderDetailPage() {
       />
       <ConfirmDialog
         open={dialog?.kind === 'delete'}
-        onClose={() => setDialog(null)}
+        onClose={closeDialog}
         onConfirm={() => void runConfirm()}
         loading={busy === 'confirm'}
         title="Hapus pesanan?"
@@ -391,7 +404,7 @@ export function OrderDetailPage() {
       />
       <ConfirmDialog
         open={dialog?.kind === 'delete-payment'}
-        onClose={() => setDialog(null)}
+        onClose={closeDialog}
         onConfirm={() => void runConfirm()}
         loading={busy === 'confirm'}
         title="Hapus pembayaran?"
