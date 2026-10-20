@@ -1,6 +1,6 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatDate, formatRupiah } from '../../lib/format'
-import { dayLabel, formatCompactRupiah, type MoneyIn } from './dashboardModel'
+import { dayLabel, formatCompactAmount, type MoneyIn } from './dashboardModel'
 
 const BAR = '#0284c7' // brand-600
 const INK_MUTED = '#64748b' // slate-500
@@ -23,10 +23,10 @@ export function MoneyChart({ series }: { series: MoneyIn[] }) {
     <>
       <div className="h-40 px-1 pb-2 pt-3" aria-hidden data-testid="money-chart">
         <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 296, height: 148 }}>
-          <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">
+          <BarChart data={data} margin={{ top: 10, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">
             <CartesianGrid vertical={false} stroke={GRID} />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK_MUTED }} tickLine={false} axisLine={{ stroke: GRID }} interval={0} />
-            <YAxis tick={{ fontSize: 11, fill: INK_MUTED }} tickLine={false} axisLine={false} width={56} tickCount={3} allowDecimals={false} tickFormatter={(v: number) => formatCompactRupiah(v)} />
+            <YAxis tick={{ fontSize: 11, fill: INK_MUTED }} tickLine={false} axisLine={false} width={44} tickCount={3} allowDecimals={false} tickFormatter={(v: number) => formatCompactAmount(v)} />
             <Tooltip
               cursor={{ fill: '#f1f5f9' }}
               formatter={(value) => [formatRupiah(Number(value)), 'Uang masuk']}
@@ -34,7 +34,9 @@ export function MoneyChart({ series }: { series: MoneyIn[] }) {
                 const date = (payload?.[0]?.payload as Point | undefined)?.date
                 return date ? formatDate(date, 'EEEE, d MMM yyyy') : ''
               }}
+              separator=": "
               labelStyle={{ color: '#0f172a', fontWeight: 600 }}
+              itemStyle={{ color: '#334155' }}
             />
             <Bar dataKey="total" fill={BAR} radius={[4, 4, 0, 0]} maxBarSize={32} isAnimationActive={false} />
           </BarChart>

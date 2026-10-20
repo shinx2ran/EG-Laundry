@@ -271,17 +271,17 @@ export function lateText(entry: Pick<LateEntry, 'daysLate'> & { order: Pick<Orde
   return `Janji ${formatDate(entry.order.promised_at)} · terlambat ${entry.daysLate} hari`
 }
 
-/** Chart axis: 0 -> 'Rp 0', 18.000 -> 'Rp 18 rb', 1.250.000 -> 'Rp 1,3 jt' (Indonesian thousands / millions). */
-export function formatCompactRupiah(amount: number): string {
+/** Chart axis (the card title says it is rupiah): 0 -> '0', 18.000 -> '18 rb', 1.250.000 -> '1,3 jt'. */
+export function formatCompactAmount(amount: number): string {
   const sign = amount < 0 ? '−' : ''
   const n = Math.abs(Math.round(amount))
   const rb = Math.round(n / 1_000)
   if (rb >= 1_000) {
     const jt = Math.round(n / 100_000) / 10
-    return `${sign}Rp ${jt.toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`
+    return `${sign}${jt.toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`
   }
-  if (n >= 1_000) return `${sign}Rp ${formatNumber(rb)} rb`
-  return `${sign}Rp ${n}`
+  if (n >= 1_000) return `${sign}${formatNumber(rb)} rb`
+  return `${sign}${n}`
 }
 
 /** Short weekday for the chart's axis: '2026-10-19' -> 'Sen'. */

@@ -7,7 +7,7 @@ import {
   buildDashboard,
   dayLabel,
   firstRunSteps,
-  formatCompactRupiah,
+  formatCompactAmount,
   inProgressLink,
   intakeOn,
   intakeText,
@@ -283,14 +283,15 @@ describe('small rules', () => {
     expect(orderLink('demo-order-04', 'bayar')).toBe('/pesanan/demo-order-04?aksi=bayar')
   })
 
-  it('compact rupiah for the chart axis', () => {
-    expect(formatCompactRupiah(0)).toBe('Rp 0')
-    expect(formatCompactRupiah(500)).toBe('Rp 500')
-    expect(formatCompactRupiah(18_000)).toBe('Rp 18 rb')
-    expect(formatCompactRupiah(152_400)).toBe('Rp 152 rb')
-    expect(formatCompactRupiah(999_999)).toBe('Rp 1 jt')
-    expect(formatCompactRupiah(1_250_000)).toBe('Rp 1,3 jt')
-    expect(formatCompactRupiah(12_000_000)).toBe('Rp 12 jt')
+  it('compact amounts for the chart axis', () => {
+    expect(formatCompactAmount(0)).toBe('0')
+    expect(formatCompactAmount(500)).toBe('500')
+    expect(formatCompactAmount(18_000)).toBe('18 rb')
+    expect(formatCompactAmount(152_400)).toBe('152 rb')
+    expect(formatCompactAmount(999_999)).toBe('1 jt')
+    expect(formatCompactAmount(1_250_000)).toBe('1,3 jt')
+    expect(formatCompactAmount(12_000_000)).toBe('12 jt')
+    expect(formatCompactAmount(-18_000)).toBe('−18 rb')
   })
 
   it('weekday labels in Indonesian', () => {

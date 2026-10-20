@@ -153,10 +153,10 @@ export function LateCard({ entries }: { entries: LateEntry[] }) {
                 <div className="min-w-0 flex-1">
                   <CustomerLine entry={e} />
                   <p className="truncate text-sm text-slate-600">{e.itemsText || '—'}</p>
+                  <p className="font-mono text-xs text-slate-500">{e.order.order_number}</p>
                   <p className="mt-0.5 text-xs font-medium text-red-700">{lateText(e)}</p>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="font-mono text-xs text-slate-500">{e.order.order_number}</span>
+                <div className="shrink-0">
                   <OrderStatusBadge status={e.order.status} />
                 </div>
               </div>
