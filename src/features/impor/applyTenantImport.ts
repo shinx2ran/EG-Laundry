@@ -4,7 +4,7 @@
  * and says what was already saved (those changes stay: running the import again finds them unchanged).
  */
 import type { OrgRepo } from '../../lib/repo/types'
-import { tenantImportSummary, type TenantImportCounts, type TenantImportPlan } from './tenantImport'
+import { tenantImportSummary, type TenantImportPlan } from './tenantImport'
 
 export type TenantImportWriter = Pick<OrgRepo, 'update' | 'insertMany'>
 
@@ -55,9 +55,4 @@ export async function applyTenantImport(repo: TenantImportWriter, plan: TenantIm
     throw new TenantImportError(stopMessage(err, done), done)
   }
   return done
-}
-
-/** The counts the screen shows for a plan, as the result would be. */
-export function plannedResult(counts: Pick<TenantImportCounts, 'update' | 'create' | 'deactivate'>): TenantImportResult {
-  return { update: counts.update, create: counts.create, deactivate: counts.deactivate }
 }

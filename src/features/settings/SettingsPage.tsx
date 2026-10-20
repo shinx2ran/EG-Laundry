@@ -9,6 +9,9 @@ import { DataCard } from './DataCard'
 import { AuditCard } from './AuditCard'
 import { InstallCard } from './InstallCard'
 import { AboutCard } from './AboutCard'
+import { WhatsAppCard } from './WhatsAppCard'
+import { TenantImportCard } from '../impor/TenantImportCard'
+import { DemoImportCard } from '../impor/DemoImportCard'
 
 export function SettingsPage() {
   const { org, role, repo, isLocalMode, isAdmin } = useOrg()
@@ -19,9 +22,13 @@ export function SettingsPage() {
       <PageHeader title="Pengaturan" subtitle={isLocalMode ? 'Mode Demo: data hanya di perangkat ini' : 'Mode Online: data tersinkron lewat Supabase'} />
       <div className="grid gap-4 lg:grid-cols-2">
         <OrganizationCard orgId={org.id} orgName={org.name} role={role} isAdmin={isAdmin} isLocalMode={isLocalMode} />
+        {/* SPEC 3.7-3.10: owner/admin only; staff does not see these cards and their hooks refuse */}
+        {isAdmin && <WhatsAppCard />}
         <MembersCard isAdmin={isAdmin} currentUserId={session?.user.id ?? ''} />
         <PriceListCard isAdmin={isAdmin} />
+        {isAdmin && <TenantImportCard />}
         <DataCard isLocalMode={isLocalMode} isAdmin={isAdmin} />
+        {isAdmin && <DemoImportCard />}
         <InstallCard />
         <AboutCard onSignOut={() => auth.signOut()} email={session?.user.email ?? null} repoMode={repo.mode} />
         {isAdmin && <AuditCard isLocalMode={isLocalMode} />}
