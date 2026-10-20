@@ -87,6 +87,22 @@ test.describe('Pengaturan (Mode Demo, 360px)', () => {
     await expect(page.getByTestId('tenant-import-preview')).toHaveCount(0)
   })
 
+  test("Laporan's promo hint opens Pengaturan at the Pesan WhatsApp card", async ({ page }) => {
+    await openSettings(page)
+    // an empty template: Laporan shows the hint with its deep link
+    await page.getByLabel('Template promo').fill('')
+    await page.getByRole('button', { name: 'Simpan pesan' }).click()
+    await expect(page.getByText('Pesan WhatsApp disimpan.')).toBeVisible()
+    await page.goto('/laporan')
+    await page.getByTestId('promo-hint').getByRole('link', { name: 'Isi di Pengaturan' }).click()
+    await expect(page).toHaveURL(/\/pengaturan#pesan-whatsapp$/)
+    const heading = page.getByRole('heading', { name: 'Pesan WhatsApp' })
+    await expect(heading).toBeInViewport()
+    // not hidden under the sticky top bar
+    const headerBottom = await page.locator('header').first().evaluate((el) => el.getBoundingClientRect().bottom)
+    expect((await heading.boundingBox())!.y).toBeGreaterThanOrEqual(headerBottom)
+  })
+
   test('Mode Demo shows the move-to-online card as not available yet', async ({ page }) => {
     await openSettings(page)
     const card = page.getByTestId('demo-import-card')

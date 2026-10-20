@@ -68,7 +68,7 @@ function WhatsAppForm({ org }: { org: Organization }) {
   }
 
   return (
-    <Card id={WHATSAPP_CARD_ID} className="scroll-mt-20">
+    <Card id={WHATSAPP_CARD_ID} className="scroll-mt-28">
       <CardHeader title="Pesan WhatsApp" subtitle="Template promo dan footer setiap pesan" action={<MessageCircle className="h-5 w-5 text-slate-400" />} />
       <CardBody>
         <form onSubmit={save} className="space-y-4">

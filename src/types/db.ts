@@ -55,7 +55,7 @@ export interface Organization {
   created_at: string
   /** WhatsApp promo text with `{nama}` for the customer's name (SPEC 3.7); null = not set yet */
   promo_template: string | null
-  /** appended to every WhatsApp message (opening hours, address, ...); null = none */
+  /** appended to the struk and "siap diambil" WhatsApp messages (SPEC 3.9; not to promos); null = none */
   wa_footer: string | null
 }
 
