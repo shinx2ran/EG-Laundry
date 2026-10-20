@@ -236,141 +236,135 @@ export function OrderDetailPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <Card>
-            <CardHeader title={`Item (${items.length})`} />
-            <ul className="divide-y divide-slate-100" data-testid="order-items">
-              {items.length === 0 && <li className="px-4 py-6 text-center text-sm text-slate-500">Tidak ada item.</li>}
-              {items.map((it) => (
-                <li key={it.id} className="flex items-start gap-3 px-4 py-2.5 text-sm">
-                  <Shirt className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+      {/* on a phone: customer (WhatsApp) right under the actions, then items, info, payments; two columns on lg */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+        <Card className="lg:col-start-3 lg:row-start-1">
+          <CardHeader title="Pelanggan" />
+          <CardBody className="space-y-3">
+            {customer ? (
+              <div>
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Link to={`/pelanggan/${customer.id}`} className="font-semibold text-brand-700 hover:underline">
+                    {customer.name}
+                  </Link>
+                  <TenantBadge customer={customer} />
+                </p>
+                <p className="text-sm text-slate-600">{customer.phone ?? 'Nomor HP belum diisi'}</p>
+                {customer.notes && <p className="mt-1 text-xs text-slate-500">{customer.notes}</p>}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Pelanggan tidak ditemukan.</p>
+            )}
+            {customer && !cancelled && (
+              <div className="grid grid-cols-1 gap-2">
+                {readyLink && order.status === 'ready' && (
+                  <WhatsAppLink href={readyLink} className="w-full">
+                    Kabari: siap diambil
+                  </WhatsAppLink>
+                )}
+                {receiptLink && (
+                  <a
+                    href={receiptLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
+                  >
+                    Kirim struk WhatsApp
+                  </a>
+                )}
+                {!customer.phone && <MissingPhoneLink customer={customer} className="w-full" />}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+        <Card className="lg:col-span-2 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+          <CardHeader title={`Item (${items.length})`} />
+          <ul className="divide-y divide-slate-100" data-testid="order-items">
+            {items.length === 0 && <li className="px-4 py-6 text-center text-sm text-slate-500">Tidak ada item.</li>}
+            {items.map((it) => (
+              <li key={it.id} className="flex items-start gap-3 px-4 py-2.5 text-sm">
+                <Shirt className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="font-medium text-slate-900">{it.service_name}</span>
+                    {it.customer_package_id && <Badge tone="brand">Paket</Badge>}
+                  </p>
+                  <p className="text-xs tabular-nums text-slate-500">
+                    {it.customer_package_id ? `${formatQty(it.qty, it.unit)} dari paket` : `${formatQty(it.qty, it.unit)} × ${formatRupiah(it.unit_price)}/${it.unit}`}
+                  </p>
+                  {it.notes && <p className="text-xs text-slate-600">{it.notes}</p>}
+                </div>
+                <span className="shrink-0 font-medium tabular-nums text-slate-900">{formatRupiah(it.line_total)}</span>
+              </li>
+            ))}
+          </ul>
+          <CardBody className="space-y-1.5 border-t border-slate-100" data-testid="order-totals">
+            <Row label="Subtotal" value={formatRupiah(totals.subtotal)} />
+            {totals.discount > 0 && <Row label="Diskon" value={`− ${formatRupiah(totals.discount)}`} />}
+            <Row label="Total" value={<span data-testid="order-total">{formatRupiah(totals.total)}</span>} strong className="text-base" />
+            <Row label="Dibayar" value={formatRupiah(totals.paid)} />
+            {!cancelled && (
+              <Row
+                label="Sisa"
+                value={<span className={clsx(totals.outstanding > 0 ? 'font-semibold text-red-700' : 'text-emerald-700')} data-testid="order-outstanding">{formatRupiah(totals.outstanding)}</span>}
+              />
+            )}
+          </CardBody>
+        </Card>
+        <Card className="lg:col-start-3 lg:row-start-2">
+          <CardHeader title="Info pesanan" />
+          <CardBody className="space-y-1.5">
+            <Row label="Tanggal masuk" value={formatDate(order.received_at)} />
+            <Row
+              label="Perkiraan selesai"
+              value={<span className={clsx(when.late && 'font-semibold text-red-700')}>{formatDate(order.promised_at)}</span>}
+            />
+            <Row label="Jenis" value={order.express ? 'Express' : 'Reguler'} />
+            {order.ready_at && <Row label="Siap diambil" value={formatDateTime(order.ready_at)} />}
+            {order.picked_up_at && <Row label="Diambil" value={formatDateTime(order.picked_up_at)} />}
+            {order.notes && <p className="whitespace-pre-wrap border-t border-slate-100 pt-2 text-sm text-slate-700">{order.notes}</p>}
+          </CardBody>
+        </Card>
+        <Card className="lg:col-span-2 lg:col-start-1 lg:row-start-3">
+          <CardHeader
+            title={`Pembayaran (${payments.length})`}
+            action={
+              offered.some((a) => a.key === 'pay') ? (
+                <Button size="sm" variant="secondary" className="h-11" icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setDialog({ kind: 'pay' })}>
+                  Terima
+                </Button>
+              ) : undefined
+            }
+          />
+          {payments.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-slate-500">Belum ada pembayaran.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100" data-testid="order-payments">
+              {payments.map((p) => (
+                <li key={p.id} className="flex items-center gap-2 px-4 py-2 text-sm">
                   <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="font-medium text-slate-900">{it.service_name}</span>
-                      {it.customer_package_id && <Badge tone="brand">Paket</Badge>}
+                    <p className="flex flex-wrap items-center gap-x-2 text-slate-900">
+                      <span className="font-medium">{formatDate(p.paid_at)}</span>
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{PAYMENT_METHOD_LABEL[p.method]}</span>
                     </p>
-                    <p className="text-xs tabular-nums text-slate-500">
-                      {it.customer_package_id ? `${formatQty(it.qty, it.unit)} dari paket` : `${formatQty(it.qty, it.unit)} × ${formatRupiah(it.unit_price)}/${it.unit}`}
-                    </p>
-                    {it.notes && <p className="text-xs text-slate-600">{it.notes}</p>}
+                    {p.notes && <p className="truncate text-xs text-slate-500">{p.notes}</p>}
                   </div>
-                  <span className="shrink-0 font-medium tabular-nums text-slate-900">{formatRupiah(it.line_total)}</span>
+                  <span className="shrink-0 font-semibold tabular-nums text-emerald-700">{formatRupiah(p.amount)}</span>
+                  {isAdmin && (
+                    <button type="button" aria-label={`Ubah pembayaran ${formatRupiah(p.amount)}`} onClick={() => setDialog({ kind: 'edit-payment', payment: p })} className={clsx(rowIconButtonClass, 'hover:bg-slate-100 hover:text-brand-700')}>
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button type="button" aria-label={`Hapus pembayaran ${formatRupiah(p.amount)}`} onClick={() => setDialog({ kind: 'delete-payment', payment: p })} className={clsx(rowIconButtonClass, 'hover:bg-red-50 hover:text-red-600')}>
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
-            <CardBody className="space-y-1.5 border-t border-slate-100" data-testid="order-totals">
-              <Row label="Subtotal" value={formatRupiah(totals.subtotal)} />
-              {totals.discount > 0 && <Row label="Diskon" value={`− ${formatRupiah(totals.discount)}`} />}
-              <Row label="Total" value={<span data-testid="order-total">{formatRupiah(totals.total)}</span>} strong className="text-base" />
-              <Row label="Dibayar" value={formatRupiah(totals.paid)} />
-              {!cancelled && (
-                <Row
-                  label="Sisa"
-                  value={<span className={clsx(totals.outstanding > 0 ? 'font-semibold text-red-700' : 'text-emerald-700')} data-testid="order-outstanding">{formatRupiah(totals.outstanding)}</span>}
-                />
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader
-              title={`Pembayaran (${payments.length})`}
-              action={
-                offered.some((a) => a.key === 'pay') ? (
-                  <Button size="sm" variant="secondary" className="h-11" icon={<Plus className="h-4 w-4" aria-hidden />} onClick={() => setDialog({ kind: 'pay' })}>
-                    Terima
-                  </Button>
-                ) : undefined
-              }
-            />
-            {payments.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-slate-500">Belum ada pembayaran.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100" data-testid="order-payments">
-                {payments.map((p) => (
-                  <li key={p.id} className="flex items-center gap-2 px-4 py-2 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-x-2 text-slate-900">
-                        <span className="font-medium">{formatDate(p.paid_at)}</span>
-                        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{PAYMENT_METHOD_LABEL[p.method]}</span>
-                      </p>
-                      {p.notes && <p className="truncate text-xs text-slate-500">{p.notes}</p>}
-                    </div>
-                    <span className="shrink-0 font-semibold tabular-nums text-emerald-700">{formatRupiah(p.amount)}</span>
-                    {isAdmin && (
-                      <button type="button" aria-label={`Ubah pembayaran ${formatRupiah(p.amount)}`} onClick={() => setDialog({ kind: 'edit-payment', payment: p })} className={clsx(rowIconButtonClass, 'hover:bg-slate-100 hover:text-brand-700')}>
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button type="button" aria-label={`Hapus pembayaran ${formatRupiah(p.amount)}`} onClick={() => setDialog({ kind: 'delete-payment', payment: p })} className={clsx(rowIconButtonClass, 'hover:bg-red-50 hover:text-red-600')}>
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader title="Pelanggan" />
-            <CardBody className="space-y-3">
-              {customer ? (
-                <div>
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <Link to={`/pelanggan/${customer.id}`} className="font-semibold text-brand-700 hover:underline">
-                      {customer.name}
-                    </Link>
-                    <TenantBadge customer={customer} />
-                  </p>
-                  <p className="text-sm text-slate-600">{customer.phone ?? 'Nomor HP belum diisi'}</p>
-                  {customer.notes && <p className="mt-1 text-xs text-slate-500">{customer.notes}</p>}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-500">Pelanggan tidak ditemukan.</p>
-              )}
-              {customer && !cancelled && (
-                <div className="grid grid-cols-1 gap-2">
-                  {readyLink && order.status === 'ready' && (
-                    <WhatsAppLink href={readyLink} className="w-full">
-                      Kabari: siap diambil
-                    </WhatsAppLink>
-                  )}
-                  {receiptLink && (
-                    <a
-                      href={receiptLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
-                    >
-                      Kirim struk WhatsApp
-                    </a>
-                  )}
-                  {!customer.phone && <MissingPhoneLink customer={customer} className="w-full" />}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="Info pesanan" />
-            <CardBody className="space-y-1.5">
-              <Row label="Tanggal masuk" value={formatDate(order.received_at)} />
-              <Row
-                label="Perkiraan selesai"
-                value={<span className={clsx(when.late && 'font-semibold text-red-700')}>{formatDate(order.promised_at)}</span>}
-              />
-              <Row label="Jenis" value={order.express ? 'Express' : 'Reguler'} />
-              {order.ready_at && <Row label="Siap diambil" value={formatDateTime(order.ready_at)} />}
-              {order.picked_up_at && <Row label="Diambil" value={formatDateTime(order.picked_up_at)} />}
-              {order.notes && <p className="whitespace-pre-wrap border-t border-slate-100 pt-2 text-sm text-slate-700">{order.notes}</p>}
-            </CardBody>
-          </Card>
-        </div>
+          )}
+        </Card>
       </div>
 
       {dialog?.kind === 'pay' && <ReceivePaymentModal order={order} totals={totals} ctx={data} actions={actions} onClose={() => setDialog(null)} />}

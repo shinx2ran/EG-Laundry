@@ -373,6 +373,16 @@ describe('updateOrder (Ubah)', () => {
     await expect(actions().updateOrder(again.o, { ...again.input, discount: 10_000 }, await ctx())).rejects.toThrow(totalBelowPaidMessage(45_000))
   })
 
+  it('a smaller discount is written before a smaller line, so a paid order never dips under its payments', async () => {
+    const created = await actions().createOrder({ customer_id: RINA, received_at: today, express: false, discount: 5_000, items: basket, payment: { amount: 40_000, method: 'cash' } }, await ctx())
+    expect(await totals(created.order.id)).toMatchObject({ total: 40_000, paid: 40_000, payStatus: 'lunas' })
+    const { o, input } = await edit(created.order.id)
+    // 2,5 kg -> 2 kg (Rp 16.000) and no discount: 41.000 >= 40.000 paid; the other order would pass 36.000
+    await actions().updateOrder(o, { ...input, discount: 0, notes: 'koreksi', items: [{ ...input.items[0], qty: 2 }, input.items[1]] }, await ctx())
+    expect(await order(created.order.id)).toMatchObject({ discount: 0, notes: 'koreksi' })
+    expect(await totals(created.order.id)).toMatchObject({ total: 41_000, paid: 40_000, outstanding: 1_000, payStatus: 'sebagian' })
+  })
+
   it('switching to express reprices every line and moves the promised date; the header follows', async () => {
     const { o, input } = await edit(OPEN)
     await actions().updateOrder(o, { ...input, express: true, promised_at: null, discount: 2_000, notes: 'Noda kopi' }, await ctx())

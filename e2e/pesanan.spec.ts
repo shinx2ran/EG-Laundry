@@ -155,6 +155,46 @@ test.describe('Pesanan (Mode Demo, 360 px)', () => {
     await expect(page.getByRole('link', { name: /Nomor HP Ibu Tini belum diisi/ }).first()).toHaveAttribute('href', /\/pelanggan\/[^/]+\?isi=hp$/)
   })
 
+  test('Ubah changes the weight, Terima pembayaran takes a DP, Ubah pembayaran stays within the total', async ({ page }) => {
+    await loginDemo(page)
+    // demo-order-00: Rina, Diterima, 3 kg cuci setrika = Rp 24.000, unpaid
+    await page.goto('/pesanan/demo-order-00')
+    await expect(page.getByTestId('order-total')).toHaveText('Rp 24.000')
+    await page.getByRole('button', { name: 'Ubah', exact: true }).click()
+    const edit = page.getByRole('dialog')
+    await edit.getByLabel('Berat (kg)').fill('4,5')
+    await edit.getByRole('button', { name: 'Simpan perubahan' }).click()
+    await expect(edit).toHaveCount(0)
+    await expect(page.getByTestId('order-total')).toHaveText('Rp 36.000')
+    await expect(page.getByTestId('order-items')).toContainText('4,5 kg × Rp 8.000/kg')
+
+    await page.getByRole('button', { name: 'Terima pembayaran' }).click()
+    const pay = page.getByRole('dialog')
+    await expect(pay.getByLabel('Jumlah')).toHaveValue('36.000')
+    await pay.getByLabel('Jumlah').fill('40000')
+    await expect(pay.getByRole('alert')).toHaveText('Jumlah melebihi sisa bayar (Rp 36.000).')
+    await expect(pay.getByRole('button', { name: 'Simpan pembayaran' })).toBeDisabled()
+    await pay.getByLabel('Jumlah').fill('10000')
+    await pay.getByRole('radio', { name: 'QRIS' }).click()
+    await pay.getByRole('button', { name: 'Simpan pembayaran' }).click()
+    await expect(pay).toHaveCount(0)
+    await expect(page.getByTestId('pay-status').first()).toHaveText('Sebagian')
+    await expect(page.getByTestId('order-outstanding')).toHaveText('Rp 26.000')
+    await expect(page.getByTestId('order-payments')).toContainText('QRIS')
+
+    // owner: Ubah pembayaran up to what the order owes without it
+    await page.getByRole('button', { name: 'Ubah pembayaran Rp 10.000' }).click()
+    const fix = page.getByRole('dialog')
+    await fix.getByLabel('Jumlah').fill('36001')
+    await expect(fix.getByRole('alert')).toContainText('Rp 36.000')
+    await fix.getByLabel('Jumlah').fill('36000')
+    await fix.getByRole('button', { name: 'Simpan', exact: true }).click()
+    await expect(fix).toHaveCount(0)
+    await expect(page.getByTestId('pay-status').first()).toHaveText('Lunas')
+    // paid: Batalkan is off now
+    await expect(page.getByRole('button', { name: 'Batalkan', exact: true })).toBeDisabled()
+  })
+
   test('cancel is refused with a payment; staff sees no Hapus and no payment corrections', async ({ page }) => {
     await loginDemo(page)
     // demo-order-02: Dimas, Proses, paid in full -> Batalkan is shown but off

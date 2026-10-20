@@ -85,13 +85,14 @@ export function OrderItemsEditor({ rows, onChange, services, express, lines, kep
                 ) : (
                   <KgInput value={row.qty} onChange={(qty) => update(row.key, { qty })} />
                 )}
-                <div className="min-w-0 pb-1 text-right" data-testid="line-total">
-                  <p className="text-base font-semibold tabular-nums text-slate-900">{line?.lineTotal != null ? formatRupiah(line.lineTotal) : '–'}</p>
-                  {line?.service && line.unitPrice != null && (
-                    <p className="text-xs tabular-nums text-slate-500">{usesPackage ? `${formatQty(line.billedQty, unit)} dari paket` : `${formatQty(line.billedQty, unit)} × ${formatRupiah(line.unitPrice)}`}</p>
-                  )}
-                </div>
+                <p className="min-w-0 whitespace-nowrap pb-2.5 text-right text-base font-semibold tabular-nums text-slate-900" data-testid="line-total">
+                  {line?.lineTotal != null ? formatRupiah(line.lineTotal) : '–'}
+                </p>
               </div>
+              {/* the breakdown on its own line: next to − / + it would not fit at 360 px */}
+              {line?.service && line.unitPrice != null && (
+                <p className="-mt-2 text-right text-xs tabular-nums text-slate-500">{usesPackage ? `${formatQty(line.billedQty, unit)} dari paket` : `${formatQty(line.billedQty, unit)} × ${formatRupiah(line.unitPrice)}`}</p>
+              )}
 
               {hint && <p className="text-xs text-amber-700">{`Dihitung ${hint} (minimal pesanan).`}</p>}
               {keptPrice !== null && currentPrice !== null && keptPrice !== currentPrice && (
@@ -178,7 +179,8 @@ export function KgInput({ value, onChange, label = 'Berat (kg)' }: { value: numb
           type="text"
           inputMode="decimal"
           autoComplete="off"
-          className={clsx(inputClass, 'h-11 w-20 text-center tabular-nums')}
+          // inputClass is full width: the box takes a fixed 4.5rem so − / + and the line total fit at 360 px
+          className={clsx(inputClass.replace('w-full', ''), 'h-11 w-[4.5rem] text-center tabular-nums')}
           value={text}
           onFocus={(e) => e.currentTarget.select()}
           onChange={(e) => {

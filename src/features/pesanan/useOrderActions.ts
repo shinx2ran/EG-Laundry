@@ -243,7 +243,8 @@ export function useOrderActions() {
      * was paid. Writes are ordered so no intermediate state trips payments_limit (the total only rises, then
      * falls to the new one) or package_use_guard (package use only falls, then rises to the new one): a smaller
      * discount, removed package lines, changed package lines (most freed first), new lines, the other changed
-     * lines (largest increase first), removed paid lines, then the rest of the header.
+     * lines (largest increase first), removed paid lines, then the rest of the header (dates, express, notes, a
+     * larger discount).
      */
     async function updateOrder(order: Order, input: EditOrderInput, ctx: ActionContext): Promise<void> {
       const refused = editProblem(order, isAdmin)
@@ -287,14 +288,18 @@ export function useOrderActions() {
       if (promised_at !== order.promised_at) header.promised_at = promised_at
 
       try {
-        const discountDrops = header.discount !== undefined && header.discount < order.discount
-        if (discountDrops) await repo.update('orders', order.id, header)
+        // a smaller discount raises the total: first. The rest of the header (a larger discount, a new received
+        // date that orders_package_guard checks against the package lines) once the lines are final.
+        if (header.discount !== undefined && header.discount < order.discount) {
+          await repo.update('orders', order.id, { discount: header.discount })
+          delete header.discount
+        }
         for (const it of removed) if (it.customer_package_id) await repo.remove('order_items', it.id)
         for (const u of packageUpdates) await repo.update('order_items', u.old.id, u.item)
         if (inserts.length > 0) await repo.insertMany('order_items', inserts.map((p) => ({ order_id: order.id, ...p })))
         for (const u of otherUpdates) await repo.update('order_items', u.old.id, u.item)
         for (const it of removed) if (!it.customer_package_id) await repo.remove('order_items', it.id)
-        if (!discountDrops && Object.keys(header).length > 0) await repo.update('orders', order.id, header)
+        if (Object.keys(header).length > 0) await repo.update('orders', order.id, header)
       } finally {
         await invalidate('orders', 'order_items')
       }
