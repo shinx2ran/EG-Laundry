@@ -616,6 +616,9 @@ create trigger orders_cancel_guard before update of status on public.orders
 
 -- The payments of an order never exceed its total (items minus discount), whichever side changes: a payment,
 -- the discount, or an item. (When items of a paid order are replaced, add the new ones before removing the old.)
+-- A cancelled order takes no payment (orders_cancel_guard needs an order without payments). A new payment locks
+-- its order first, so two phones paying at once, or a payment racing a cancel on another phone, take turns and
+-- each sees what the other committed.
 create or replace function public.payments_limit()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -623,7 +626,16 @@ declare
   oid uuid;
   total bigint;
   paid bigint;
+  st text;
 begin
+  if tg_table_name = 'payments' then
+    if tg_op = 'INSERT' or new.order_id is distinct from old.order_id then
+      select status into st from public.orders where id = new.order_id for no key update;
+      if st = 'cancelled' then
+        raise exception 'Pesanan yang dibatalkan tidak menerima pembayaran.';
+      end if;
+    end if;
+  end if;
   if tg_table_name = 'orders' then
     ids := array[new.id];
   else

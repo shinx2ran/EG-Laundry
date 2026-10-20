@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { LocalRepo, STORAGE_KEY, emptyLocalDb } from './localRepo'
 import {
+  CANCELLED_PAYMENT_MESSAGE,
   CANCEL_STATUS_MESSAGE,
   CANCEL_WITH_PAYMENTS_MESSAGE,
   DELETE_DENIED_MESSAGE,
@@ -128,6 +129,15 @@ describe('LocalRepo mirrors the laundry schema (guards)', () => {
     const [p] = await repo.list('payments', { where: { order_id: order.id } })
     await repo.remove('payments', p.id)
     expect((await repo.update('orders', order.id, { status: 'cancelled' })).status).toBe('cancelled')
+  })
+
+  it('payments_limit: a cancelled order takes no payment, new or moved onto it', async () => {
+    const { repo, order, paidOrder } = demo()
+    await repo.update('orders', order.id, { status: 'cancelled' })
+    await expect(repo.insert('payments', { order_id: order.id, amount: 1_000, paid_at: '2026-10-19', method: 'cash', notes: null })).rejects.toThrow(CANCELLED_PAYMENT_MESSAGE)
+    const [p] = await repo.list('payments', { where: { order_id: paidOrder.id } })
+    await expect(repo.update('payments', p.id, { order_id: order.id })).rejects.toThrow(CANCELLED_PAYMENT_MESSAGE)
+    expect(await repo.list('payments', { where: { order_id: order.id } })).toEqual([])
   })
 
   it('payments_limit: payments, discounts and item edits never leave an order paid above its total', async () => {

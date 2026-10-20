@@ -8,7 +8,7 @@ import { ORDER_STATUS_LABEL } from '../../types/db'
 import { isOrderLate, orderTotals, type OrderTotals } from '../../domain/pricing'
 import { readyText, receiptText } from '../../domain/messages'
 import { formatRupiah } from '../../lib/format'
-import { CANCEL_STATUS_MESSAGE, CANCEL_WITH_PAYMENTS_MESSAGE, DONE_ORDER_ADMIN_MESSAGE } from '../../lib/repo/types'
+import { CANCELLED_PAYMENT_MESSAGE, CANCEL_STATUS_MESSAGE, CANCEL_WITH_PAYMENTS_MESSAGE, DONE_ORDER_ADMIN_MESSAGE } from '../../lib/repo/types'
 import { matchesCustomerSearch } from '../pelanggan/customerUtils'
 
 // ---------- Indonesian messages ----------
@@ -20,7 +20,7 @@ export const STAFF_DELETE_PAYMENT_MESSAGE = 'Hanya pemilik/admin yang dapat meng
 export const PAYMENT_POSITIVE_MESSAGE = 'Jumlah pembayaran harus lebih dari 0.'
 export const PAYMENT_DATE_MESSAGE = 'Isi tanggal bayar.'
 export const ORDER_PAID_MESSAGE = 'Pesanan ini sudah lunas.'
-export const CANCELLED_PAYMENT_MESSAGE = 'Pesanan yang dibatalkan tidak menerima pembayaran.'
+export { CANCELLED_PAYMENT_MESSAGE } from '../../lib/repo/types'
 export const RECEIVED_DATE_MESSAGE = 'Isi tanggal masuk.'
 export const PROMISED_DATE_MESSAGE = 'Tanggal perkiraan selesai tidak valid.'
 

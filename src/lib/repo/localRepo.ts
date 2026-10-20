@@ -3,6 +3,7 @@ import { TABLE_NAMES } from '../../types/db'
 import { newId } from '../ids'
 import type { CreatedInvitation, ListOptions, Repo, StorageBucket } from './types'
 import {
+  CANCELLED_PAYMENT_MESSAGE,
   CANCEL_STATUS_MESSAGE,
   CANCEL_WITH_PAYMENTS_MESSAGE,
   CODE_ALPHABET,
@@ -302,6 +303,10 @@ export class LocalRepo implements Repo {
       return
     }
     if (table === 'payments') {
+      // payments_limit: a new payment (or one moved to another order) never lands on a cancelled order
+      if (!before || before.order_id !== next.order_id) {
+        if (this.db.orders.find((o) => o.id === next.order_id)?.status === 'cancelled') throw new Error(CANCELLED_PAYMENT_MESSAGE)
+      }
       this.assertPaidWithinTotal(next.order_id as string, { extraPayment: next as unknown as Row<'payments'>, replaces: before?.id as string | undefined })
       return
     }

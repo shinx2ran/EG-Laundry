@@ -45,6 +45,8 @@ export const CANCEL_WITH_PAYMENTS_MESSAGE = 'Pesanan yang sudah ada pembayaranny
 export const CANCEL_STATUS_MESSAGE = 'Pesanan hanya dapat dibatalkan selama Diterima/Proses.'
 /** payments_limit: the sum of payments never exceeds the order total. */
 export const PAYMENT_EXCEEDS_TOTAL_MESSAGE = 'Pembayaran melebihi total pesanan.'
+/** payments_limit: a cancelled order takes no payment (cancelling needs an order without payments). */
+export const CANCELLED_PAYMENT_MESSAGE = 'Pesanan yang dibatalkan tidak menerima pembayaran.'
 /** package_use_guard (SPEC 3.4) */
 export const PACKAGE_OTHER_CUSTOMER_MESSAGE = 'Paket ini milik pelanggan lain.'
 export const PACKAGE_OTHER_SERVICE_MESSAGE = 'Paket ini tidak berlaku untuk layanan tersebut.'

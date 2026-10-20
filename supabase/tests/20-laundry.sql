@@ -23,6 +23,7 @@ insert into zz.ids values
   ('pkg1', 'b1000000-0000-0000-0000-000000000043'),
   ('pay_dp', 'b1000000-0000-0000-0000-000000000051'), ('pay_done', 'b1000000-0000-0000-0000-000000000052'),
   ('pay_cancel', 'b1000000-0000-0000-0000-000000000053'),
+  ('ord_race', 'b1000000-0000-0000-0000-000000000029'), ('ord_race2', 'b1000000-0000-0000-0000-00000000002a'),
   ('svc2', 'b2000000-0000-0000-0000-000000000001'), ('cust2', 'b2000000-0000-0000-0000-000000000002'),
   ('ord2', 'b2000000-0000-0000-0000-000000000003');
 
@@ -206,6 +207,52 @@ begin
   perform zz.chk('cancel', '... nor its item', 'hanya bisa diubah pemilik/admin', zz.att(s, format('delete from public.order_items where id = %L', zz.id('item_cancel'))));
   perform zz.eq('cancel', 'admin reopens it', 'ok:1', zz.att(a, format('update public.orders set status = ''received'' where id = %L', zz.id('ord_cancel')), true));
   perform zz.eq('cancel', 'staff cancels it again', 'ok:1', zz.att(s, format('update public.orders set status = ''cancelled'' where id = %L', zz.id('ord_cancel')), true));
+  -- payments_limit: a cancelled order takes no payment (it would count as uang masuk outside every order figure)
+  perform zz.eq('cancel', 'a payment on the cancelled order is refused', 'err:P0001:Pesanan yang dibatalkan tidak menerima pembayaran.',
+    zz.att(s, format('insert into public.payments (org_id, order_id, amount, paid_at) values (%L, %L, 10000, %L)', org, zz.id('ord_cancel'), '2026-10-19')));
+  perform zz.eq('cancel', '... for the admin too', 'err:P0001:Pesanan yang dibatalkan tidak menerima pembayaran.',
+    zz.att(a, format('insert into public.payments (org_id, order_id, amount, paid_at) values (%L, %L, 10000, %L)', org, zz.id('ord_cancel'), '2026-10-19')));
+  perform zz.eq('cancel', 'a payment cannot be moved onto it either', 'err:P0001:Pesanan yang dibatalkan tidak menerima pembayaran.',
+    zz.att(a, format('update public.payments set order_id = %L where id = %L', zz.id('ord_cancel'), zz.id('pay_done'))));
+  perform zz.eq('cancel', 'admin may still correct a payment on another order', 'ok:1',
+    zz.att(a, format('update public.payments set notes = ''lunas'' where id = %L', zz.id('pay_done'))));
+  -- two open orders for the races below (cancel on one phone, payment on another)
+  perform zz.eq('cancel', 'staff records two more orders', 'ok:2', zz.att(s, format(
+    'insert into public.orders (id, org_id, order_number, customer_id, received_at) values (%L, %L, %L, %L, %L), (%L, %L, %L, %L, %L)',
+    zz.id('ord_race'), org, 'LD-202610-0007', zz.id('cust_hendra'), '2026-10-19', zz.id('ord_race2'), org, 'LD-202610-0008', zz.id('cust_hendra'), '2026-10-19'), true));
+  perform zz.eq('cancel', '... with an item each', 'ok:2', zz.att(s, format(
+    'insert into public.order_items (org_id, order_id, service_id, service_name, unit, unit_price, qty, line_total) values (%L, %L, %L, %L, %L, 6000, 2, 12000), (%L, %L, %L, %L, %L, 6000, 2, 12000)',
+    org, zz.id('ord_race'), zz.id('svc_kering'), 'Cuci kering', 'kg', org, zz.id('ord_race2'), zz.id('svc_kering'), 'Cuci kering', 'kg'), true));
+end $$;
+
+-- 4b. A cancel and a payment at the same moment on two phones: one of them waits and is refused
+select zz.dbl_open('c1', zz.id('staff'));
+select set_config('zz.pid', zz.dbl_open('c2', zz.id('wife'))::text, false);
+select zz.dblink_exec('c1', 'begin');
+select zz.eq('cancel-race', 'staff cancels the order (transaction still open)', 'UPDATE 1',
+  zz.dblink_exec('c1', format('update public.orders set status = ''cancelled'' where id = %L', zz.id('ord_race'))));
+select zz.dblink_send_query('c2', format('insert into public.payments (org_id, order_id, amount, paid_at) values (%L, %L, 5000, %L)', zz.id('org1'), zz.id('ord_race'), '2026-10-19'));
+select zz.eq('cancel-race', 'the payment on the other phone waits for the cancel (row lock on the order)', 'Lock', zz.wait_for_lock(current_setting('zz.pid')::int));
+select zz.dblink_exec('c1', 'commit');
+select * from zz.dblink_get_result('c2', false) as t(r text);
+select zz.chk('cancel-race', '... and is refused once the cancel is committed', 'Pesanan yang dibatalkan tidak menerima pembayaran\.', zz.dblink_error_message('c2'));
+select * from zz.dblink_get_result('c2', false) as t(r text);
+
+select zz.dblink_exec('c2', 'begin');
+select zz.eq('cancel-race', 'admin takes a DP (transaction still open)', 'INSERT 0 1',
+  zz.dblink_exec('c2', format('insert into public.payments (org_id, order_id, amount, paid_at) values (%L, %L, 5000, %L)', zz.id('org1'), zz.id('ord_race2'), '2026-10-19')));
+select set_config('zz.pid', (select pid from zz.dblink('c1', 'select pg_backend_pid()') as t(pid int))::text, false);
+select zz.dblink_send_query('c1', format('update public.orders set status = ''cancelled'' where id = %L', zz.id('ord_race2')));
+select zz.eq('cancel-race', 'the cancel on the other phone waits for the payment', 'Lock', zz.wait_for_lock(current_setting('zz.pid')::int));
+select zz.dblink_exec('c2', 'commit');
+select * from zz.dblink_get_result('c1', false) as t(r text);
+select zz.chk('cancel-race', '... and is refused once the payment is committed', 'Pesanan yang sudah ada pembayarannya tidak dapat dibatalkan\.', zz.dblink_error_message('c1'));
+select * from zz.dblink_get_result('c1', false) as t(r text);
+select zz.dblink_disconnect('c1'), zz.dblink_disconnect('c2');
+do $$ begin
+  perform zz.eq('cancel-race', 'end state: one cancelled order without payment, one open order with its DP', 'cancelled:0|received:5000', (
+    select string_agg(o.status || ':' || coalesce((select sum(amount) from public.payments p where p.order_id = o.id), 0), '|' order by o.order_number)
+      from public.orders o where o.id in (zz.id('ord_race'), zz.id('ord_race2'))));
 end $$;
 
 -- 5. Prepaid packages (SPEC 3.4)
