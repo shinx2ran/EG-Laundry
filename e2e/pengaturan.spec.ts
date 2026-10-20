@@ -111,7 +111,7 @@ test.describe('Pengaturan (Mode Demo, 360px)', () => {
     await expect(card.getByRole('button')).toHaveCount(0)
   })
 
-  test('staff does not see Pesan WhatsApp, Impor penyewa or Pindahkan data', async ({ page }) => {
+  test('staff does not see Anggota, Pesan WhatsApp, Impor penyewa or Pindahkan data', async ({ page }) => {
     await openSettings(page)
     await page.evaluate(() => {
       const raw = localStorage.getItem('eglaundry.local.db.v1')
@@ -121,7 +121,9 @@ test.describe('Pengaturan (Mode Demo, 360px)', () => {
       localStorage.setItem('eglaundry.local.db.v1', JSON.stringify(db))
     })
     await page.reload()
-    await expect(page.getByRole('heading', { name: 'Anggota' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Daftar harga' })).toBeVisible()
+    // SPEC 3.10: the members (and their emails) are hidden from staff
+    await expect(page.getByRole('heading', { name: 'Anggota' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Pesan WhatsApp' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Impor penyewa dari Woombad' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Pindahkan data Mode Demo ke online' })).toHaveCount(0)

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { ToastProvider } from '../../components/ui'
 import type { MemberRole, Order } from '../../types/db'
 import { LocalRepo } from '../../lib/repo/localRepo'
@@ -93,14 +93,9 @@ describe('PickupModal', () => {
       }) as OrgRepo['update'],
     }
     state.repo = repo
-    let actions: ReturnType<typeof useOrderActions> | null = null
-    function Grab() {
-      actions = useOrderActions()
-      return null
-    }
-    render(<Grab />)
+    const actions = renderHook(() => useOrderActions()).result.current
     const { order, ctx } = await load()
-    const err = await actions!.markPickedUp(order, ctx, { amount: 10_000, method: 'cash' }).catch((e: unknown) => e)
+    const err = await actions.markPickedUp(order, ctx, { amount: 10_000, method: 'cash' }).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(PaymentSavedError)
     expect((err as PaymentSavedError).payment).toMatchObject({ order_id: READY, amount: 10_000 })
   })
