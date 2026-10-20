@@ -2,4 +2,5 @@ import type { RouteObject } from 'react-router'
 
 export const pelangganRoutes: RouteObject[] = [
   { path: 'pelanggan', lazy: () => import('./PelangganPage').then((m) => ({ Component: m.PelangganPage })) },
+  { path: 'pelanggan/:id', lazy: () => import('./PelangganDetailPage').then((m) => ({ Component: m.PelangganDetailPage })) },
 ]
