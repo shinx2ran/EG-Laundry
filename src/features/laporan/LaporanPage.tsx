@@ -44,8 +44,10 @@ function LaporanContent() {
     [customers, orders, orderItems, payments, customerPackages, p.range, p.preset, p.today],
   )
 
+  // data-dirty-ignore: every control here (period, tabs, filter, N days) only changes what is shown, so none of it
+  // is unsaved work that should hold back an app update (dirtyState)
   return (
-    <>
+    <div data-dirty-ignore>
       <PageHeader title="Laporan" subtitle={p.label} />
       <RangeControls preset={p.preset} range={p.range} onPreset={p.setPreset} onCustom={p.setCustomRange} />
       {data.isPending ? (
@@ -71,6 +73,6 @@ function LaporanContent() {
           />
         </>
       )}
-    </>
+    </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { clsx } from 'clsx'
 import { MessageCircle } from 'lucide-react'
@@ -40,26 +40,28 @@ function PromoLink({ customer, template }: { customer: Customer; template: strin
   )
 }
 
+/** organizations.promo_template is empty: the Kirim promo links open an empty chat until it is filled in. */
 function PromoHint() {
   return (
-    <p data-testid="promo-hint" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-      Template promo belum diisi.{' '}
-      <Link to="/pengaturan" className="font-medium underline">
+    <div data-testid="promo-hint" className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 py-1 pl-3 pr-1 text-xs text-amber-900">
+      <span>Template promo belum diisi, pesan promo masih kosong.</span>
+      <Link to="/pengaturan" className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 font-medium underline hover:bg-amber-100">
         Isi di Pengaturan
-      </Link>{' '}
-      supaya Kirim promo langsung berisi pesannya.
-    </p>
+      </Link>
+    </div>
   )
 }
 
-function CustomerName({ customer }: { customer: Customer }) {
+/** The left part of a row: name + Anak kos badge and the detail lines; the whole block opens the customer. */
+function CustomerInfo({ customer, children }: { customer: Customer; children: ReactNode }) {
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-      <Link to={`/pelanggan/${customer.id}`} className="truncate text-sm font-semibold text-slate-900 hover:underline">
-        {customer.name}
-      </Link>
-      <TenantBadge customer={customer} />
-    </span>
+    <Link to={`/pelanggan/${customer.id}`} className="block min-h-11 min-w-0 flex-1 rounded-lg hover:bg-brand-50/50">
+      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className="truncate text-sm font-semibold text-slate-900">{customer.name}</span>
+        <TenantBadge customer={customer} />
+      </span>
+      {children}
+    </Link>
   )
 }
 
@@ -138,8 +140,7 @@ function CustomerTable({
           <ul className="divide-y divide-slate-100 border-t border-slate-100">
             {visible.map((r) => (
               <li key={r.customer.id} data-testid="report-customer" data-name={r.customer.name} data-tenant={r.customer.is_tenant ? '1' : '0'} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="min-w-0 flex-1">
-                  <CustomerName customer={r.customer} />
+                <CustomerInfo customer={r.customer}>
                   <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-500">
                     <span className="whitespace-nowrap">{lastVisitText(r.lastVisit, today)}</span>
                     <span className="whitespace-nowrap tabular-nums">
@@ -149,7 +150,7 @@ function CustomerTable({
                   <span className={clsx('block text-xs tabular-nums', r.ordersInRange > 0 ? 'text-slate-700' : 'text-slate-400')}>
                     {customerPeriodText(r)}
                   </span>
-                </span>
+                </CustomerInfo>
                 <PromoLink customer={r.customer} template={template} />
               </li>
             ))}
@@ -181,7 +182,7 @@ function AbsentList({
     <Card data-testid="absent-card">
       <CardBody className="space-y-2">
         <label className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
-          <span>Terakhir datang lebih dari</span>
+          <span>Tidak datang lebih dari</span>
           <input
             type="number"
             inputMode="numeric"
@@ -195,22 +196,21 @@ function AbsentList({
             }}
             className="h-11 w-20 rounded-lg border border-slate-300 bg-white px-3 text-center text-sm tabular-nums text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
           />
-          <span>hari lalu</span>
+          <span>hari</span>
         </label>
-        <p className="text-xs text-slate-500">Target promosi: pelanggan yang pernah mencuci, paling lama tidak datang di atas.</p>
+        <p className="text-xs text-slate-500">Dihitung dari hari ini, untuk target promosi: pelanggan yang pernah mencuci, paling lama tidak datang di atas.</p>
       </CardBody>
       {rows.length === 0 ? (
-        <p className="border-t border-slate-100 px-4 py-6 text-center text-sm text-slate-500">Semua pelanggan datang dalam {days} hari terakhir.</p>
+        <p className="border-t border-slate-100 px-4 py-6 text-center text-sm text-slate-500">Tidak ada pelanggan yang lebih dari {days} hari tidak datang.</p>
       ) : (
         <ul className="divide-y divide-slate-100 border-t border-slate-100">
           {rows.map((r) => (
             <li key={r.customer.id} data-testid="absent-customer" data-name={r.customer.name} data-days={r.daysAway} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="min-w-0 flex-1">
-                <CustomerName customer={r.customer} />
+              <CustomerInfo customer={r.customer}>
                 <span className="mt-0.5 block text-xs text-slate-500">
                   <span className="font-medium text-red-700">{r.daysAway} hari</span> · terakhir {formatDate(r.lastVisit)} · {formatNumber(r.orderCount)} pesanan
                 </span>
-              </span>
+              </CustomerInfo>
               <PromoLink customer={r.customer} template={template} />
             </li>
           ))}

@@ -25,7 +25,7 @@ export function UangMasukChart({ data }: { data: ChartPoint[] }) {
         <BarChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#e2e8f0" />
           <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={12} />
-          <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatCompactRupiah(v)} width={44} />
+          <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatCompactRupiah(v)} width={56} />
           <Tooltip content={(props) => <ChartTooltip active={props.active} payload={props.payload} />} cursor={{ fill: '#f1f5f9' }} />
           <Bar isAnimationActive={false} name="Uang masuk" dataKey="amount" fill="#0369a1" radius={[3, 3, 0, 0]} maxBarSize={24} />
         </BarChart>

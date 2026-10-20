@@ -127,9 +127,9 @@ describe('XLSX', () => {
     const date = toXlsxCell('2026-10-05', 'date')
     expect(date?.type).toBe(Date)
     expect(date?.format).toBe('dd/mm/yyyy')
-    expect((date?.value as Date).getFullYear()).toBe(2026)
-    expect((date?.value as Date).getMonth()).toBe(9)
-    expect((date?.value as Date).getDate()).toBe(5)
+    const value = date?.value
+    expect(value).toBeInstanceOf(Date)
+    expect([(value as Date).getFullYear(), (value as Date).getMonth(), (value as Date).getDate()]).toEqual([2026, 9, 5])
     expect(toXlsxCell('-', 'date')).toEqual({ value: '-', type: String })
     expect(toXlsxCell(null, 'money')).toBeNull()
   })

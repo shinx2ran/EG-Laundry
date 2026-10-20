@@ -68,6 +68,8 @@ describe('LaporanPage', () => {
     expect(Number(tile.getAttribute('data-amount'))).toBeGreaterThan(0)
     expect(screen.getByText('1 Okt 2026 – 31 Okt 2026')).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Bulan ini' }).getAttribute('aria-checked')).toBe('true')
+    // view-only controls: choosing a period or a filter is not unsaved work (dirtyState)
+    expect(screen.getByRole('radio', { name: 'Bulan ini' }).closest('[data-dirty-ignore]')).not.toBeNull()
     expect(screen.getAllByTestId('service-row').length).toBeGreaterThan(0)
     const orders = screen.getByTestId('split-orders')
     expect(Number(orders.getAttribute('data-tenant-pct'))).toBeGreaterThan(0)
@@ -94,6 +96,7 @@ describe('LaporanPage', () => {
     await screen.findByTestId('absent-card')
     const input = screen.getByLabelText('Batas hari tidak datang') as HTMLInputElement
     expect(input.value).toBe('21')
+    expect(input.closest('[data-dirty-ignore]')).not.toBeNull()
     // Nabila's last visit in the demo is 28 days ago
     expect(screen.getAllByTestId('absent-customer').map((r) => r.getAttribute('data-name'))).toContain('Nabila Zahra')
     fireEvent.change(input, { target: { value: '7' } })
@@ -103,7 +106,7 @@ describe('LaporanPage', () => {
     expect(days.every((d) => d > 7)).toBe(true)
     expect([...days].sort((a, b) => b - a)).toEqual(days)
     fireEvent.change(input, { target: { value: '60' } })
-    expect(screen.getByText('Semua pelanggan datang dalam 60 hari terakhir.')).toBeTruthy()
+    expect(screen.getByText('Tidak ada pelanggan yang lebih dari 60 hari tidak datang.')).toBeTruthy()
   })
 
   it('without a promo template: a hint to Pengaturan, Kirim promo opens a blank chat', async () => {

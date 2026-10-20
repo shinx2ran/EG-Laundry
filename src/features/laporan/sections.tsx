@@ -38,7 +38,7 @@ export function RangeControls({
   onCustom: (range: DateRange) => void
 }) {
   return (
-    <div className="mb-4 space-y-2" data-dirty-ignore>
+    <div className="mb-4 space-y-2">
       <Segmented label="Periode laporan" value={preset} options={RANGE_PRESETS.map((key) => ({ key, label: RANGE_PRESET_LABEL[key] }))} onChange={onPreset} />
       {/* keyed by the range: the inputs start over when the range changes from outside (another preset, the URL) */}
       {preset === 'custom' && <CustomRange key={`${range.start}_${range.end}`} range={range} onChange={onCustom} />}
