@@ -3,13 +3,13 @@ import { Link } from 'react-router'
 import { clsx } from 'clsx'
 import { MessageCircle } from 'lucide-react'
 import { Card, CardBody, Segmented } from '../../components/ui'
-import { formatDate, formatNumber, formatQty, formatRupiah, whatsappLink } from '../../lib/format'
+import { formatDate, formatNumber, whatsappLink } from '../../lib/format'
 import { promoText } from '../../domain/messages'
 import type { Customer, Order } from '../../types/db'
 import { FilterChips, TenantBadge } from '../pelanggan/components'
 import { MissingPhoneLink } from '../pelanggan/MissingPhoneLink'
 import { CUSTOMER_FILTERS, CUSTOMER_FILTER_LABEL, customerFilterCounts, lastVisitText, matchesCustomerFilter, type CustomerFilter } from '../pelanggan/customerUtils'
-import { LAMA_MAX_DAYS, LAMA_MIN_DAYS, absentCustomers, parseLamaDays, type CustomerReportRow, type DateRange, type Laporan } from './reportModel'
+import { LAMA_MAX_DAYS, LAMA_MIN_DAYS, absentCustomers, customerPeriodText, parseLamaDays, type CustomerReportRow, type DateRange, type Laporan } from './reportModel'
 import { buildAbsentSheet, buildCustomersSheet } from './export'
 import { readLamaDays, writeLamaDays } from './lamaSetting'
 import { ExportButtons } from './sections'
@@ -126,40 +126,40 @@ function CustomerTable({
   const counts = useMemo(() => customerFilterCounts(rows.map((r) => r.customer)), [rows])
   const visible = useMemo(() => rows.filter((r) => matchesCustomerFilter(r.customer, filter)), [rows, filter])
   return (
-    <Card data-testid="customers-card">
-      <CardBody className="space-y-1">
-        <FilterChips label="Jenis pelanggan" value={filter} onChange={onFilter} options={CUSTOMER_FILTERS.map((k) => ({ key: k, label: CUSTOMER_FILTER_LABEL[k], count: counts[k] }))} />
-        <p className="text-xs text-slate-500">Urut dari yang paling sering pada periode ini. 30 / 90 hari dihitung sampai {range.end < today ? formatDate(range.end) : 'hari ini'}.</p>
-      </CardBody>
-      {visible.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-slate-500">Tidak ada pelanggan.</p>
-      ) : (
-        <ul className="divide-y divide-slate-100 border-t border-slate-100">
-          {visible.map((r) => (
-            <li key={r.customer.id} data-testid="report-customer" data-name={r.customer.name} data-tenant={r.customer.is_tenant ? '1' : '0'} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="min-w-0 flex-1">
-                <CustomerName customer={r.customer} />
-                <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-500">
-                  <span className="whitespace-nowrap">{lastVisitText(r.lastVisit, today)}</span>
-                  <span className="whitespace-nowrap tabular-nums">
-                    30 hr: {r.orders30} · 90 hr: {r.orders90}
+    <>
+      <FilterChips label="Jenis pelanggan" value={filter} onChange={onFilter} options={CUSTOMER_FILTERS.map((k) => ({ key: k, label: CUSTOMER_FILTER_LABEL[k], count: counts[k] }))} />
+      <Card data-testid="customers-card">
+        <CardBody>
+          <p className="text-xs text-slate-500">Urut dari yang paling sering pada periode ini. 30 / 90 hari dihitung sampai {range.end < today ? formatDate(range.end) : 'hari ini'}.</p>
+        </CardBody>
+        {visible.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-slate-500">Tidak ada pelanggan.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100 border-t border-slate-100">
+            {visible.map((r) => (
+              <li key={r.customer.id} data-testid="report-customer" data-name={r.customer.name} data-tenant={r.customer.is_tenant ? '1' : '0'} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <CustomerName customer={r.customer} />
+                  <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-500">
+                    <span className="whitespace-nowrap">{lastVisitText(r.lastVisit, today)}</span>
+                    <span className="whitespace-nowrap tabular-nums">
+                      30 hr: {r.orders30} · 90 hr: {r.orders90}
+                    </span>
+                  </span>
+                  <span className={clsx('block text-xs tabular-nums', r.ordersInRange > 0 ? 'text-slate-700' : 'text-slate-400')}>
+                    {customerPeriodText(r)}
                   </span>
                 </span>
-                <span className={clsx('block text-xs tabular-nums', r.ordersInRange > 0 ? 'text-slate-700' : 'text-slate-400')}>
-                  {r.ordersInRange > 0
-                    ? `${formatNumber(r.ordersInRange)} pesanan · ${[r.kg > 0 && formatQty(r.kg, 'kg'), r.pcs > 0 && formatQty(r.pcs, 'pcs')].filter(Boolean).join(' + ') || '0 kg'} · ${formatRupiah(r.value)}`
-                    : 'Tidak ada pesanan pada periode ini'}
-                </span>
-              </span>
-              <PromoLink customer={r.customer} template={template} />
-            </li>
-          ))}
-        </ul>
-      )}
-      <CardBody className="border-t border-slate-100">
-        <ExportButtons what="pelanggan" range={range} build={() => buildCustomersSheet(visible)} disabled={visible.length === 0} />
-      </CardBody>
-    </Card>
+                <PromoLink customer={r.customer} template={template} />
+              </li>
+            ))}
+          </ul>
+        )}
+        <CardBody className="border-t border-slate-100">
+          <ExportButtons what="pelanggan" range={range} build={() => buildCustomersSheet(visible)} disabled={visible.length === 0} />
+        </CardBody>
+      </Card>
+    </>
   )
 }
 

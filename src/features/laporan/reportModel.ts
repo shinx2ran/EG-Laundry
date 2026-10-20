@@ -12,7 +12,7 @@
 import type { Customer, CustomerPackage, Order, OrderItem, Payment, PaymentMethod, Unit } from '../../types/db'
 import { PAYMENT_METHODS } from '../../types/db'
 import { orderTotals, roundQty } from '../../domain/pricing'
-import { addDaysISO, daysBetween, formatDate, formatMonth } from '../../lib/format'
+import { addDaysISO, daysBetween, formatDate, formatMonth, formatNumber, formatQty, formatRupiah } from '../../lib/format'
 
 /** What staff see on /laporan (SPEC 3.10: reports are for the owner and admins; the menu entry is hidden too). */
 export const STAFF_MESSAGE = 'Laporan hanya untuk pemilik/admin.'
@@ -547,6 +547,13 @@ export function customerReport(customers: Customer[], orders: OrderRow[], items:
       a.customer.name.localeCompare(b.customer.name, 'id', { sensitivity: 'base' }),
   )
   return list
+}
+
+/** The range part of a Pelanggan row: '3 pesanan · 11,5 kg + 1 pcs · Rp 27.000', or that there was none. */
+export function customerPeriodText(row: Pick<CustomerReportRow, 'ordersInRange' | 'kg' | 'pcs' | 'value'>): string {
+  if (row.ordersInRange === 0) return 'Tidak ada pesanan pada periode ini'
+  const qty = [row.kg > 0 ? formatQty(row.kg, 'kg') : null, row.pcs > 0 ? formatQty(row.pcs, 'pcs') : null].filter((q) => q !== null).join(' + ')
+  return `${formatNumber(row.ordersInRange)} pesanan · ${qty || formatQty(0, 'kg')} · ${formatRupiah(row.value)}`
 }
 
 // =====================================================================================================================

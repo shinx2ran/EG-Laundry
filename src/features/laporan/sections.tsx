@@ -192,9 +192,13 @@ export function MoneyInCard({ report }: { report: Laporan }) {
             </div>
           ))}
         </dl>
-        <p className="text-xs text-slate-500">
-          Pembayaran pesanan <span className="font-medium tabular-nums text-slate-700">{formatRupiah(money.fromPayments)}</span> · Paket terjual{' '}
-          <span className="font-medium tabular-nums text-slate-700">{formatRupiah(money.fromPackages)}</span>
+        <p className="flex flex-wrap gap-x-2 text-xs text-slate-500">
+          <span className="whitespace-nowrap">
+            Pembayaran pesanan <span className="font-medium tabular-nums text-slate-700">{formatRupiah(money.fromPayments)}</span>
+          </span>
+          <span className="whitespace-nowrap">
+            Paket terjual <span className="font-medium tabular-nums text-slate-700">{formatRupiah(money.fromPackages)}</span>
+          </span>
         </p>
       </CardBody>
     </Card>
