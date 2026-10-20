@@ -15,11 +15,13 @@ import {
   parseQtyText,
   qtyText,
   rowProblem,
+  rowPackageChoice,
   rowUnit,
   rowsFromItems,
   rowsToDraftItems,
   servicePriceLabel,
   stepQty,
+  usablePackages,
   type DraftRow,
 } from './orderForm'
 
@@ -156,12 +158,39 @@ describe('package choice (SPEC 3.4)', () => {
     expect(choice?.pkg.id).toBe('soon')
   })
 
+  it('lists every package of the customer still usable on the received date, expiring first first', () => {
+    const packages = [
+      pkg('p1', { expires_at: '2026-11-30' }),
+      pkg('p2', { service_id: 'bc', expires_at: '2026-10-25', qty_total: 5 }),
+      pkg('old', { expires_at: '2026-10-01' }),
+      pkg('other', { customer_id: 'c2' }),
+      pkg('used', { qty_total: 8 }),
+    ]
+    const used = [{ order_id: 'o1', customer_package_id: 'used', qty: 8 }]
+    expect(usablePackages(packages, 'c1', '2026-10-19', used, orders).map((c) => [c.pkg.id, c.remaining])).toEqual([
+      ['p2', 5],
+      ['p1', 20],
+    ])
+    expect(usablePackages(packages, null, '2026-10-19', [], [])).toEqual([])
+  })
+
   it('what the other rows of the draft already take from a package (minimum applied)', () => {
     const rows = [row({ key: 'a', service_id: 'cs', qty: 1, customer_package_id: 'p1' }), row({ key: 'b', service_id: 'cs', qty: 3.5, customer_package_id: 'p1' }), row({ key: 'c', service_id: 'cs', qty: 4 })]
     expect(draftPackageUse(rows, services, 'p1', 'b')).toBe(2)
     expect(draftPackageUse(rows, services, 'p1', 'a')).toBe(3.5)
     expect(draftPackageUse(rows, services, 'p1', 'none')).toBe(5.5)
     expect(draftPackageUse(rows, services, 'p2', 'none')).toBe(0)
+  })
+
+  it('a row is offered what the other rows leave of the package; a row already on it can switch it off', () => {
+    const choice = { pkg: pkg('p1'), remaining: 6 }
+    const rows = [row({ key: 'a', service_id: 'cs', qty: 4, customer_package_id: 'p1' }), row({ key: 'b', service_id: 'cs', qty: 3 })]
+    expect(rowPackageChoice(choice, rows, services, rows[1])?.remaining).toBe(2)
+    expect(rowPackageChoice(choice, rows, services, rows[0])?.remaining).toBe(6)
+    const full = [row({ key: 'a', service_id: 'cs', qty: 6, customer_package_id: 'p1' }), row({ key: 'b', service_id: 'cs', qty: 2, customer_package_id: 'p1' }), row({ key: 'c', service_id: 'cs', qty: 2 })]
+    expect(rowPackageChoice(choice, full, services, full[2])).toBeNull()
+    expect(rowPackageChoice(choice, full, services, full[1])).toEqual({ pkg: choice.pkg, remaining: 0 })
+    expect(rowPackageChoice(null, rows, services, rows[0])).toBeNull()
   })
 })
 

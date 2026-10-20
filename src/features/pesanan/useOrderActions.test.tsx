@@ -20,6 +20,7 @@ import {
   CANCELLED_PAYMENT_MESSAGE,
   CUSTOMER_NAME_MESSAGE,
   ORDER_PAID_MESSAGE,
+  PROMISED_BEFORE_RECEIVED_MESSAGE,
   STAFF_DELETE_ORDER_MESSAGE,
   STAFF_DELETE_PAYMENT_MESSAGE,
   STAFF_EDIT_PAYMENT_MESSAGE,
@@ -153,6 +154,7 @@ describe('createOrder', () => {
     await expect(actions().createOrder({ customer_id: RINA, received_at: today, express: false, discount: 50_000, items: basket }, c)).rejects.toThrow(ERR_DISCOUNT_EXCEEDS)
     await expect(actions().createOrder({ customer_id: RINA, received_at: today, express: false, discount: 5_000, items: basket, payment: { amount: 40_001, method: 'cash' } }, c)).rejects.toThrow(ERR_PAYMENT_EXCEEDS)
     await expect(actions().createOrder({ customer_id: RINA, received_at: '', express: false, discount: 0, items: basket }, c)).rejects.toThrow('Isi tanggal masuk.')
+    await expect(actions().createOrder({ customer_id: RINA, received_at: today, promised_at: addDaysISO(today, -1), express: false, discount: 0, items: basket }, c)).rejects.toThrow(PROMISED_BEFORE_RECEIVED_MESSAGE)
     expect(await repo.list('orders')).toHaveLength(c.orders.length)
   })
 

@@ -24,7 +24,18 @@ export const RECEIVED_DATE_MESSAGE = 'Isi tanggal masuk.'
 export const PROMISED_DATE_MESSAGE = 'Tanggal perkiraan selesai tidak valid.'
 export const CUSTOMER_NAME_MESSAGE = 'Nama pelanggan wajib diisi.'
 
+export const PROMISED_BEFORE_RECEIVED_MESSAGE = 'Perkiraan selesai tidak boleh sebelum tanggal masuk.'
+
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** The order's dates: a received date is required; a promised date (optional) is a date not before it. */
+export function datesProblem(receivedAt: string, promisedAt: string | null | undefined): string | null {
+  if (!DATE_RE.test(receivedAt)) return RECEIVED_DATE_MESSAGE
+  if (!promisedAt) return null
+  if (!DATE_RE.test(promisedAt)) return PROMISED_DATE_MESSAGE
+  if (promisedAt < receivedAt) return PROMISED_BEFORE_RECEIVED_MESSAGE
+  return null
+}
 
 /** 'Jumlah melebihi sisa bayar (Rp 25.000).' */
 export function paymentExceedsMessage(outstanding: number): string {

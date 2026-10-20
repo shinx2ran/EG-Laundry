@@ -103,13 +103,28 @@ export function packageChoice(
   excludeOrderId: string | null = null,
 ): PackageChoice | null {
   if (!customerId || !serviceId) return null
+  return usablePackages(packages.filter((p) => p.service_id === serviceId), customerId, receivedAt, orderItems, orders, excludeOrderId)[0] ?? null
+}
+
+/**
+ * Every package of the customer that an order received on `receivedAt` can still draw on (not expired, something
+ * left), the one expiring first first: shown under the chosen customer of the order form.
+ */
+export function usablePackages(
+  packages: CustomerPackage[],
+  customerId: string | null,
+  receivedAt: string,
+  orderItems: Pick<OrderItem, 'order_id' | 'customer_package_id' | 'qty'>[],
+  orders: Pick<Order, 'id' | 'status'>[],
+  excludeOrderId: string | null = null,
+): PackageChoice[] {
+  if (!customerId) return []
   const items = excludeOrderId ? orderItems.filter((i) => i.order_id !== excludeOrderId) : orderItems
-  const usable = packages
-    .filter((p) => packageUsable(p, customerId, serviceId, receivedAt))
+  return packages
+    .filter((p) => packageUsable(p, customerId, p.service_id, receivedAt))
     .map((pkg) => ({ pkg, remaining: packageRemaining(pkg, items, orders) }))
     .filter((c) => c.remaining > 0)
     .sort((a, b) => (a.pkg.expires_at ?? '9999').localeCompare(b.pkg.expires_at ?? '9999'))
-  return usable[0] ?? null
 }
 
 // ---------- live totals ----------
@@ -180,6 +195,17 @@ export function draftPackageUse(rows: DraftRow[], services: Pick<Service, 'id' |
     if (Number.isFinite(qty) && qty > 0) used += qty
   }
   return roundQty(used)
+}
+
+/**
+ * The "Pakai paket" offer of one row: the package choice with what the draft's other rows already take from it
+ * deducted. Null when nothing is left for this row, unless the row already draws on it (so it can be switched off).
+ */
+export function rowPackageChoice(choice: PackageChoice | null, rows: DraftRow[], services: Pick<Service, 'id' | 'min_qty'>[], row: Pick<DraftRow, 'key' | 'customer_package_id'>): PackageChoice | null {
+  if (!choice) return null
+  const remaining = roundQty(choice.remaining - draftPackageUse(rows, services, choice.pkg.id, row.key))
+  if (remaining > 0 || row.customer_package_id === choice.pkg.id) return { pkg: choice.pkg, remaining: Math.max(0, remaining) }
+  return null
 }
 
 // ---------- Ubah: old lines keep their prices (SPEC 3.1) ----------

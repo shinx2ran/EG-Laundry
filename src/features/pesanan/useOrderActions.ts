@@ -25,12 +25,13 @@ import { todayISO } from '../../lib/format'
 import {
   CUSTOMER_NAME_MESSAGE,
   DATE_RE,
-  PROMISED_DATE_MESSAGE,
-  RECEIVED_DATE_MESSAGE,
+  PAYMENT_DATE_MESSAGE,
+  PAYMENT_POSITIVE_MESSAGE,
   STAFF_DELETE_ORDER_MESSAGE,
   STAFF_DELETE_PAYMENT_MESSAGE,
   STAFF_EDIT_PAYMENT_MESSAGE,
   cancelProblem,
+  datesProblem,
   editProblem,
   paymentProblem,
   totalBelowPaidMessage,
@@ -177,11 +178,11 @@ export function useOrderActions() {
      * order and reports it (PartialSaveError).
      */
     async function createOrder(input: CreateOrderInput, ctx: ActionContext): Promise<CreateOrderResult> {
-      if (!DATE_RE.test(input.received_at)) throw new Error(RECEIVED_DATE_MESSAGE)
-      if (input.promised_at && !DATE_RE.test(input.promised_at)) throw new Error(PROMISED_DATE_MESSAGE)
+      const dates = datesProblem(input.received_at, input.promised_at)
+      if (dates) throw new Error(dates)
       const payment = input.payment && input.payment.amount > 0 ? input.payment : null
-      if (payment && !Number.isInteger(payment.amount)) throw new Error('Jumlah pembayaran harus bilangan bulat.')
-      if (payment?.paid_at && !DATE_RE.test(payment.paid_at)) throw new Error('Isi tanggal bayar.')
+      if (payment && !Number.isInteger(payment.amount)) throw new Error(PAYMENT_POSITIVE_MESSAGE)
+      if (payment?.paid_at && !DATE_RE.test(payment.paid_at)) throw new Error(PAYMENT_DATE_MESSAGE)
       const errors = validateOrderDraft(
         { customer_id: input.customer_id, received_at: input.received_at, express: input.express, discount: input.discount, items: input.items, payment: payment?.amount ?? 0 },
         draftContext(ctx),
@@ -247,8 +248,8 @@ export function useOrderActions() {
     async function updateOrder(order: Order, input: EditOrderInput, ctx: ActionContext): Promise<void> {
       const refused = editProblem(order, isAdmin)
       if (refused) throw new Error(refused)
-      if (!DATE_RE.test(input.received_at)) throw new Error(RECEIVED_DATE_MESSAGE)
-      if (input.promised_at && !DATE_RE.test(input.promised_at)) throw new Error(PROMISED_DATE_MESSAGE)
+      const dates = datesProblem(input.received_at, input.promised_at)
+      if (dates) throw new Error(dates)
       const existing = ctx.orderItems.filter((i) => i.order_id === order.id)
       const view = keepOldPrices(input.items, existing, ctx.services, input.express, order.express)
       const paid = orderTotals(order, ctx.orderItems, ctx.payments).paid
@@ -330,6 +331,7 @@ export function useOrderActions() {
       if (payment && payment.amount > 0) {
         const refused = paymentProblem(payment.amount, order, orderTotals(order, ctx.orderItems, ctx.payments))
         if (refused) throw new Error(refused)
+        if (payment.paid_at && !DATE_RE.test(payment.paid_at)) throw new Error(PAYMENT_DATE_MESSAGE)
         try {
           paymentRow = await repo.insert('payments', {
             order_id: order.id,
@@ -364,7 +366,7 @@ export function useOrderActions() {
     async function recordPayment(order: Order, input: PaymentInput, ctx: ActionContext): Promise<Payment> {
       const refused = paymentProblem(input.amount, order, orderTotals(order, ctx.orderItems, ctx.payments))
       if (refused) throw new Error(refused)
-      if (input.paid_at && !DATE_RE.test(input.paid_at)) throw new Error('Isi tanggal bayar.')
+      if (input.paid_at && !DATE_RE.test(input.paid_at)) throw new Error(PAYMENT_DATE_MESSAGE)
       try {
         return await repo.insert('payments', {
           order_id: order.id,

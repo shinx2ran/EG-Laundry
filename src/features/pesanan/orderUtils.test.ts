@@ -7,8 +7,12 @@ import {
   ORDER_PAID_MESSAGE,
   PAYMENT_DATE_MESSAGE,
   PAYMENT_POSITIVE_MESSAGE,
+  PROMISED_BEFORE_RECEIVED_MESSAGE,
+  PROMISED_DATE_MESSAGE,
+  RECEIVED_DATE_MESSAGE,
   cancelProblem,
   dateLine,
+  datesProblem,
   editProblem,
   isClosed,
   isSamePayment,
@@ -51,6 +55,18 @@ describe('messages', () => {
   it('formats the amounts in rupiah', () => {
     expect(paymentExceedsMessage(25_000)).toBe('Jumlah melebihi sisa bayar (Rp 25.000).')
     expect(totalBelowPaidMessage(45_000)).toBe('Total pesanan tidak boleh lebih kecil dari yang sudah dibayar (Rp 45.000).')
+  })
+})
+
+describe('order dates', () => {
+  it('needs a received date; the promised date is optional but never before it', () => {
+    expect(datesProblem('2026-10-19', '2026-10-22')).toBeNull()
+    expect(datesProblem('2026-10-19', '2026-10-19')).toBeNull()
+    expect(datesProblem('2026-10-19', null)).toBeNull()
+    expect(datesProblem('2026-10-19', '')).toBeNull()
+    expect(datesProblem('', '2026-10-22')).toBe(RECEIVED_DATE_MESSAGE)
+    expect(datesProblem('2026-10-19', '22/10/2026')).toBe(PROMISED_DATE_MESSAGE)
+    expect(datesProblem('2026-10-19', '2026-10-18')).toBe(PROMISED_BEFORE_RECEIVED_MESSAGE)
   })
 })
 
