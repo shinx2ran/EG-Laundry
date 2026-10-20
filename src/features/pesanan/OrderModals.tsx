@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { Button, Input, Modal, MoneyInput, Textarea, useToast } from '../../components/ui'
+import { Button, Input, Modal, MoneyInput, Row, Segmented, Switch, Textarea, useToast } from '../../components/ui'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL, type Customer, type Order, type Payment, type PaymentMethod } from '../../types/db'
 import type { OrderTotals } from '../../domain/pricing'
 import { formatRupiah, todayISO } from '../../lib/format'
 import { RecordHistory } from '../settings/audit/RecordHistory'
 import { DATE_RE, PAYMENT_DATE_MESSAGE, isSamePayment, paymentProblem, paymentRoom, validatePaymentEdit, type PaymentEditPatch } from './orderUtils'
-import { Row, Segmented, Switch } from './components'
 import type { ActionContext, OrderActions } from './useOrderActions'
 
 const METHOD_OPTIONS = PAYMENT_METHODS.map((m) => ({ key: m, label: PAYMENT_METHOD_LABEL[m] }))

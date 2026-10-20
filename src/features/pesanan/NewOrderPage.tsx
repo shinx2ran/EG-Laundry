@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ArrowLeft, Package, Save } from 'lucide-react'
-import { Button, Card, CardBody, CardHeader, ErrorState, Input, LoadingState, MoneyInput, PageHeader, Textarea, useToast } from '../../components/ui'
+import { Button, Card, CardBody, CardHeader, ErrorState, Input, LoadingState, MoneyInput, PageHeader, Row, Segmented, Switch, Textarea, useToast } from '../../components/ui'
 import { useLaundryData } from '../../hooks/useLaundryData'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL, type PaymentMethod, type Service } from '../../types/db'
 import { promisedDate, validateOrderDraft } from '../../domain/pricing'
@@ -10,8 +10,9 @@ import { draftLines, draftSummary, newDraftRow, packageChoice, rowPackageChoice,
 import { datesProblem, payNowCaption } from './orderUtils'
 import { OrderItemsEditor } from './OrderItemsEditor'
 import { CustomerPicker } from './CustomerPicker'
-import { Row, Segmented, Switch } from './components'
 import { PartialSaveError, useOrderActions } from './useOrderActions'
+import { useCustomerActions } from '../pelanggan/useCustomerActions'
+import { EMPTY_CUSTOMER_FORM } from '../pelanggan/customerUtils'
 
 const METHOD_OPTIONS = PAYMENT_METHODS.map((m) => ({ key: m, label: PAYMENT_METHOD_LABEL[m] }))
 
@@ -25,6 +26,7 @@ const METHOD_OPTIONS = PAYMENT_METHODS.map((m) => ({ key: m, label: PAYMENT_METH
 export function NewOrderPage() {
   const data = useLaundryData()
   const actions = useOrderActions()
+  const customerActions = useCustomerActions()
   const toast = useToast()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -137,7 +139,7 @@ export function NewOrderPage() {
               orders={data.orders}
               value={customer}
               onChange={chooseCustomer}
-              onCreate={actions.createCustomer}
+              onCreate={({ name, phone }) => customerActions.createCustomer({ ...EMPTY_CUSTOMER_FORM, name, phone })}
               chosenExtra={
                 packagesNow.length > 0 ? (
                   <ul className="space-y-1" aria-label="Paket pelanggan">

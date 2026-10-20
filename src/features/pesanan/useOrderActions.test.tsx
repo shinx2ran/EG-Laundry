@@ -18,7 +18,6 @@ import { ERR_DISCOUNT_EXCEEDS, ERR_NO_CUSTOMER, ERR_NO_ITEMS, ERR_PAYMENT_EXCEED
 import { addDaysISO, todayISO } from '../../lib/format'
 import {
   CANCELLED_PAYMENT_MESSAGE,
-  CUSTOMER_NAME_MESSAGE,
   ORDER_PAID_MESSAGE,
   PROMISED_BEFORE_RECEIVED_MESSAGE,
   STAFF_DELETE_ORDER_MESSAGE,
@@ -492,17 +491,5 @@ describe('roles (SPEC 3.10)', () => {
     await actions().deleteOrder(await order(DONE))
     const after = await ctx()
     expect(packageRemaining(pkg, after.orderItems, after.orders)).toBe(16)
-  })
-})
-
-describe('createCustomer (Tambah pelanggan baru)', () => {
-  it('needs a name; the phone may follow later', async () => {
-    const a = actions()
-    await expect(a.createCustomer({ name: '  ' })).rejects.toThrow(CUSTOMER_NAME_MESSAGE)
-    const c = await a.createCustomer({ name: ' Ibu Tini ', phone: ' ' })
-    expect(c).toMatchObject({ name: 'Ibu Tini', phone: null, is_tenant: false, room_name: null, kos_tenant_id: null })
-    expect(invalidate).toHaveBeenCalledWith('customers')
-    const d = await a.createCustomer({ name: 'Pak Budi', phone: '0812-0000-9999' })
-    expect(d.phone).toBe('0812-0000-9999')
   })
 })

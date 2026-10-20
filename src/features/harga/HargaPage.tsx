@@ -104,7 +104,7 @@ export function HargaPage() {
             subtitle="Dibeli di muka, dipakai per pesanan sampai habis"
             action={
               editable ? (
-                <Button size="sm" variant="secondary" className="shrink-0 whitespace-nowrap" icon={<Plus className="h-4 w-4" />} onClick={() => setPackageModal({ row: null })}>
+                <Button size="sm" variant="secondary" className="h-11 shrink-0 whitespace-nowrap" icon={<Plus className="h-4 w-4" />} onClick={() => setPackageModal({ row: null })}>
                   Tambah paket
                 </Button>
               ) : (

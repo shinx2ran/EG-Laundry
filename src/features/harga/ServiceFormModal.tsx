@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
-import { Button, ConfirmDialog, Input, Modal, MoneyInput, useToast } from '../../components/ui'
+import { Button, ConfirmDialog, Input, Modal, MoneyInput, Switch, useToast } from '../../components/ui'
 import type { Service } from '../../types/db'
 import { UNIT_LABEL } from '../../types/db'
-import { Switch, UnitPicker } from './components'
+import { UnitPicker } from './components'
 import {
   NO_USAGE,
   initialServiceForm,

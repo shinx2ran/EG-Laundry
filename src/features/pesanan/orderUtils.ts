@@ -9,6 +9,7 @@ import { isOrderLate, orderTotals, type OrderTotals } from '../../domain/pricing
 import { readyText, receiptText } from '../../domain/messages'
 import { formatRupiah } from '../../lib/format'
 import { CANCEL_STATUS_MESSAGE, CANCEL_WITH_PAYMENTS_MESSAGE, DONE_ORDER_ADMIN_MESSAGE } from '../../lib/repo/types'
+import { matchesCustomerSearch } from '../pelanggan/customerUtils'
 
 // ---------- Indonesian messages ----------
 
@@ -22,7 +23,6 @@ export const ORDER_PAID_MESSAGE = 'Pesanan ini sudah lunas.'
 export const CANCELLED_PAYMENT_MESSAGE = 'Pesanan yang dibatalkan tidak menerima pembayaran.'
 export const RECEIVED_DATE_MESSAGE = 'Isi tanggal masuk.'
 export const PROMISED_DATE_MESSAGE = 'Tanggal perkiraan selesai tidak valid.'
-export const CUSTOMER_NAME_MESSAGE = 'Nama pelanggan wajib diisi.'
 
 export const PROMISED_BEFORE_RECEIVED_MESSAGE = 'Perkiraan selesai tidak boleh sebelum tanggal masuk.'
 
@@ -76,30 +76,17 @@ export function tabMatches(tab: OrderTab, status: OrderStatus): boolean {
   return tab === 'semua' || TAB_STATUS[tab] === status
 }
 
-/** Case-insensitive match on the order number, the customer's name, or the digits of the phone number. */
-export function matchesOrderSearch(order: Pick<Order, 'order_number'>, customer: Pick<Customer, 'name' | 'phone'> | undefined, query: string): boolean {
+type SearchCustomer = Pick<Customer, 'name' | 'phone' | 'is_tenant' | 'room_name'>
+
+/**
+ * Case-insensitive match on the order number, or the customer as the Pelanggan list searches them
+ * (matchesCustomerSearch: name, phone in the 0812 / +62 spelling, a tenant's room).
+ */
+export function matchesOrderSearch(order: Pick<Order, 'order_number'>, customer: SearchCustomer | undefined, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
   if (order.order_number.toLowerCase().includes(q)) return true
-  return customer !== undefined && matchesCustomerQuery(customer, q)
-}
-
-/** Name contains the query, or 3+ typed digits occur in the phone ('0812…' and '+62812…' alike). Empty query: all. */
-export function matchesCustomerQuery(customer: Pick<Customer, 'name' | 'phone'>, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  if (customer.name.toLowerCase().includes(q)) return true
-  const digits = q.replace(/\D/g, '')
-  if (digits.length >= 3 && customer.phone) {
-    const phone = customer.phone.replace(/\D/g, '')
-    if (phone.includes(digits)) return true
-    // '0812…' typed against a '+62812…' number and the other way round
-    const local = phone.startsWith('62') ? `0${phone.slice(2)}` : phone
-    if (local.includes(digits)) return true
-    const typedLocal = digits.startsWith('62') ? `0${digits.slice(2)}` : digits
-    if (local.includes(typedLocal)) return true
-  }
-  return false
+  return customer !== undefined && matchesCustomerSearch(customer, q)
 }
 
 /** Newest first: received date, then the time it was entered. */
@@ -120,7 +107,7 @@ export function tabCounts(orders: Pick<Order, 'status'>[]): Record<OrderTab, num
  * The customers the picker lists: with a query, the matches (names starting with it first); without one, the most
  * recent visitors first (last received date of an order that is not cancelled), then the rest by name.
  */
-export function pickCustomers<C extends Pick<Customer, 'id' | 'name' | 'phone'>>(
+export function pickCustomers<C extends Pick<Customer, 'id'> & SearchCustomer>(
   customers: C[],
   orders: Pick<Order, 'customer_id' | 'received_at' | 'status'>[],
   query: string,
@@ -134,7 +121,7 @@ export function pickCustomers<C extends Pick<Customer, 'id' | 'name' | 'phone'>>
   }
   const q = query.trim().toLowerCase()
   const byVisit = (a: C, b: C) => (last.get(b.id) ?? '').localeCompare(last.get(a.id) ?? '') || a.name.localeCompare(b.name, 'id')
-  const list = customers.filter((c) => matchesCustomerQuery(c, q))
+  const list = customers.filter((c) => matchesCustomerSearch(c, q))
   const starts = (c: C) => (q && c.name.toLowerCase().startsWith(q) ? 0 : 1)
   return list.sort((a, b) => starts(a) - starts(b) || byVisit(a, b)).slice(0, limit)
 }
@@ -319,13 +306,6 @@ export function orderReadyText(order: MessageOrder, items: MessageItem[], totals
 }
 
 // ---------- display ----------
-
-/** 'Anak kos · B3' / 'Anak kos' for a tenant, null for a walk-in. */
-export function tenantLabel(customer: Pick<Customer, 'is_tenant' | 'room_name'> | undefined): string | null {
-  if (!customer?.is_tenant) return null
-  const room = customer.room_name?.trim()
-  return room ? `Anak kos · ${room}` : 'Anak kos'
-}
 
 export interface DateLine {
   /** 'Perkiraan selesai' while open, 'Siap sejak' / 'Diambil' afterwards; null for a cancelled order */

@@ -5,7 +5,8 @@ import type { OrderTotals } from '../../domain/pricing'
 import { itemsSummary } from '../../domain/messages'
 import { formatDate, formatRupiah } from '../../lib/format'
 import { dateLine } from './orderUtils'
-import { ExpressBadge, LateBadge, OrderStatusBadge, PayStatusBadge, TenantBadge } from './components'
+import { ExpressBadge, LateBadge, OrderStatusBadge, PayStatusBadge } from './components'
+import { TenantBadge } from '../pelanggan/components'
 
 /**
  * One order in the list, a single tap target to its detail page: customer and Anak kos badge, items, number, status,

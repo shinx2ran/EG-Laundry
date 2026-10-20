@@ -3,8 +3,13 @@ import { Phone, UserPlus, X } from 'lucide-react'
 import { Button, Input, useToast } from '../../components/ui'
 import type { Customer, Order } from '../../types/db'
 import { newCustomerPrefill, pickCustomers } from './orderUtils'
-import { TenantBadge } from './components'
-import type { NewCustomerInput } from './useOrderActions'
+import { TenantBadge } from '../pelanggan/components'
+
+/** What the quick add asks: the name, and the phone as typed ('' = later). */
+export interface NewCustomerInput {
+  name: string
+  phone: string
+}
 
 export interface CustomerPickerProps {
   customers: Customer[]
@@ -12,7 +17,7 @@ export interface CustomerPickerProps {
   orders: Pick<Order, 'customer_id' | 'received_at' | 'status'>[]
   value: Customer | undefined
   onChange: (customerId: string | null) => void
-  /** inserts a customer row (name required, phone optional) and returns it */
+  /** saves the customer (useCustomerActions.createCustomer: the same rules as the Pelanggan form) and returns it */
   onCreate: (input: NewCustomerInput) => Promise<Customer>
   /** extra line under the chosen customer (e.g. their packages) */
   chosenExtra?: ReactNode
@@ -63,10 +68,6 @@ export function CustomerPicker({ customers, orders, value, onChange, onCreate, c
   }
 
   const save = async () => {
-    if (!name.trim()) {
-      toast.error('Nama pelanggan wajib diisi.')
-      return
-    }
     setSaving(true)
     try {
       const created = await onCreate({ name, phone })

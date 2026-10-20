@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { clsx } from 'clsx'
 import { ArrowLeft, Ban, CheckCircle2, PackageCheck, Pencil, Play, Plus, Shirt, Trash2, Wallet, X } from 'lucide-react'
-import { Badge, Button, Card, CardBody, CardHeader, ConfirmDialog, EmptyState, ErrorState, LoadingState, PageHeader, useToast } from '../../components/ui'
+import { Badge, Button, Card, CardBody, CardHeader, ConfirmDialog, EmptyState, ErrorState, LoadingState, PageHeader, Row, useToast } from '../../components/ui'
 import { useOrg } from '../../hooks/useOrg'
 import { useLaundryData } from '../../hooks/useLaundryData'
 import { PAYMENT_METHOD_LABEL, type Payment } from '../../types/db'
 import { formatDate, formatDateTime, formatQty, formatRupiah, todayISO, whatsappLink } from '../../lib/format'
 import { dateLine, offeredActions, orderReadyText, orderReceiptText, parseDetailAction, type OfferedAction, type OrderAction } from './orderUtils'
-import { ExpressBadge, LateBadge, MissingPhoneLink, OrderStatusBadge, PayStatusBadge, Row, TenantBadge, WhatsAppLink } from './components'
+import { ExpressBadge, LateBadge, OrderStatusBadge, PayStatusBadge, WhatsAppLink } from './components'
+import { TenantBadge } from '../pelanggan/components'
+import { MissingPhoneLink } from '../pelanggan/MissingPhoneLink'
 import { EditPaymentModal, PickupModal, ReceivePaymentModal } from './OrderModals'
 import { EditOrderModal } from './EditOrderModal'
 import { useOrderActions } from './useOrderActions'
@@ -208,7 +210,7 @@ export function OrderDetailPage() {
                 Kirim struk WhatsApp
               </WhatsAppLink>
             ) : customer ? (
-              <MissingPhoneLink customer={customer} className="w-full" />
+              <MissingPhoneLink variant="button" customer={customer} className="w-full" />
             ) : null}
           </CardBody>
         </Card>
@@ -285,7 +287,7 @@ export function OrderDetailPage() {
                     Kirim struk WhatsApp
                   </a>
                 )}
-                {!customer.phone && <MissingPhoneLink customer={customer} className="w-full" />}
+                {!customer.phone && <MissingPhoneLink variant="button" customer={customer} className="w-full" />}
               </div>
             )}
           </CardBody>

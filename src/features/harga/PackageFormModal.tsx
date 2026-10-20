@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
-import { Button, ConfirmDialog, Input, Modal, MoneyInput, Select, useToast } from '../../components/ui'
+import { Button, ConfirmDialog, Input, Modal, MoneyInput, Select, Switch, useToast } from '../../components/ui'
 import type { PackageCatalogItem, Service } from '../../types/db'
-import { Switch } from './components'
 import { formatRupiah } from '../../lib/format'
 import { roundQty } from '../../domain/pricing'
 import {

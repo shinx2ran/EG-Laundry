@@ -16,7 +16,6 @@ import {
   editProblem,
   isClosed,
   isSamePayment,
-  matchesCustomerQuery,
   matchesOrderSearch,
   newCustomerPrefill,
   nextStatuses,
@@ -33,7 +32,6 @@ import {
   sortOrdersNewest,
   tabCounts,
   tabMatches,
-  tenantLabel,
   totalBelowPaidMessage,
   transitionProblem,
   validatePaymentEdit,
@@ -97,7 +95,7 @@ describe('list tabs and search', () => {
   })
 
   it('searches the order number, the customer name and the phone digits', () => {
-    const customer = { name: 'Rina Putri', phone: '0812-0000-0001' }
+    const customer = { name: 'Rina Putri', phone: '0812-0000-0001', is_tenant: false, room_name: null }
     expect(matchesOrderSearch(order('received'), customer, '')).toBe(true)
     expect(matchesOrderSearch(order('received'), customer, 'ld-202610-0007')).toBe(true)
     expect(matchesOrderSearch(order('received'), customer, '0007')).toBe(true)
@@ -107,12 +105,16 @@ describe('list tabs and search', () => {
     expect(matchesOrderSearch(order('received'), undefined, 'rina')).toBe(false)
   })
 
-  it('matches a phone typed as 0812… against +62812… and the other way round, from 3 digits', () => {
-    expect(matchesCustomerQuery({ name: 'A', phone: '+6281200000001' }, '0812 0000')).toBe(true)
-    expect(matchesCustomerQuery({ name: 'A', phone: '0812-0000-0001' }, '+62812')).toBe(true)
-    expect(matchesCustomerQuery({ name: 'A', phone: '0812-0000-0001' }, '0001')).toBe(true)
-    expect(matchesCustomerQuery({ name: 'A', phone: '0812-0000-0001' }, '01')).toBe(false)
-    expect(matchesCustomerQuery({ name: 'A', phone: null }, '0812')).toBe(false)
+  it('finds the customer as the Pelanggan list does: phone as 0812… or +62812… from 3 digits, a tenant by room', () => {
+    const o = order('received', { order_number: 'LD-202610-0042' })
+    const walkIn = (phone: string | null) => ({ name: 'A', phone, is_tenant: false, room_name: null })
+    expect(matchesOrderSearch(o, walkIn('+6281200000001'), '0812 0000')).toBe(true)
+    expect(matchesOrderSearch(o, walkIn('0812-0000-0001'), '+62812')).toBe(true)
+    expect(matchesOrderSearch(o, walkIn('0812-0000-0001'), '0001')).toBe(true)
+    expect(matchesOrderSearch(o, walkIn('0812-0000-0001'), '01')).toBe(false)
+    expect(matchesOrderSearch(o, walkIn(null), '0812')).toBe(false)
+    expect(matchesOrderSearch(o, { name: 'Rina', phone: null, is_tenant: true, room_name: 'B3' }, 'b3')).toBe(true)
+    expect(matchesOrderSearch(o, { name: 'Rina', phone: null, is_tenant: false, room_name: 'B3' }, 'b3')).toBe(false)
   })
 
   it('sorts newest first: received date, then the time it was entered', () => {
@@ -128,10 +130,10 @@ describe('list tabs and search', () => {
 
 describe('customer picker', () => {
   const customers = [
-    { id: 'c1', name: 'Andi Wijaya', phone: '0812-0000-0008' },
-    { id: 'c2', name: 'Bu Wati', phone: '0812-0000-0007' },
-    { id: 'c3', name: 'Mega', phone: null },
-    { id: 'c4', name: 'Rina Andini', phone: '0812-0000-0001' },
+    { id: 'c1', name: 'Andi Wijaya', phone: '0812-0000-0008', is_tenant: false, room_name: null },
+    { id: 'c2', name: 'Bu Wati', phone: '0812-0000-0007', is_tenant: false, room_name: null },
+    { id: 'c3', name: 'Mega', phone: null, is_tenant: true, room_name: 'A1' },
+    { id: 'c4', name: 'Rina Andini', phone: '0812-0000-0001', is_tenant: false, room_name: null },
   ]
   const orders = [
     { customer_id: 'c2', received_at: '2026-10-10', status: 'done' as const },
@@ -148,6 +150,8 @@ describe('customer picker', () => {
     expect(pickCustomers(customers, orders, 'andi').map((c) => c.id)).toEqual(['c1', 'c4'])
     expect(pickCustomers(customers, orders, '0007').map((c) => c.id)).toEqual(['c2'])
     expect(pickCustomers(customers, orders, 'zzz')).toEqual([])
+    // a tenant is found by the exact room, as on the Pelanggan list
+    expect(pickCustomers(customers, orders, 'A1').map((c) => c.id)).toEqual(['c3'])
   })
 
   it('Tambah pelanggan baru starts from what was searched', () => {
@@ -303,13 +307,6 @@ describe('WhatsApp texts (SPEC 3.9)', () => {
 })
 
 describe('display', () => {
-  it('tenant label with the room', () => {
-    expect(tenantLabel({ is_tenant: true, room_name: ' B3 ' })).toBe('Anak kos · B3')
-    expect(tenantLabel({ is_tenant: true, room_name: null })).toBe('Anak kos')
-    expect(tenantLabel({ is_tenant: false, room_name: 'B3' })).toBeNull()
-    expect(tenantLabel(undefined)).toBeNull()
-  })
-
   it('the date line: the promise while open (late after the day), ready/picked up times afterwards', () => {
     const today = '2026-10-23'
     expect(dateLine(order('received'), today)).toEqual({ label: 'Perkiraan selesai', date: '2026-10-22', late: true })

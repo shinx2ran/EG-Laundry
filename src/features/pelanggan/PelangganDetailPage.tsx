@@ -10,7 +10,9 @@ import { formatDate, formatQty, formatRupiah, todayISO, whatsappLink } from '../
 import { PAYMENT_METHOD_LABEL, type CustomerPackage, type Order } from '../../types/db'
 import { CustomerFormModal } from './CustomerFormModal'
 import { SellPackageModal } from './SellPackageModal'
-import { Avatar, OrderStatusBadge, PackageStateBadge, PayStatusBadge } from './components'
+import { Avatar, PackageStateBadge, TenantBadge } from './components'
+import { LateBadge, OrderStatusBadge, PayStatusBadge } from '../pesanan/components'
+import { newOrderLinkClass } from '../pesanan/styles'
 import { useCustomerActions } from './useCustomerActions'
 import { canDeleteCustomer, customerOrders, initials, packageState, tenantBadgeText } from './customerUtils'
 
@@ -105,7 +107,7 @@ export function PelangganDetailPage() {
         title={c.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
-            {badge ? <Badge tone="brand">{badge}</Badge> : <Badge tone="neutral">Umum</Badge>}
+            {c.is_tenant ? <TenantBadge customer={c} /> : <Badge tone="neutral">Umum</Badge>}
             <span>{myOrders.length} pesanan</span>
           </span>
         }
@@ -117,22 +119,26 @@ export function PelangganDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`WhatsApp ${c.name}`}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
               >
                 <MessageCircle className="h-4 w-4" aria-hidden /> WhatsApp
               </a>
             )}
-            <Button variant="outline" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditOpen(true)}>
+            <Button variant="outline" className="h-11" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditOpen(true)}>
               Ubah
             </Button>
             {actions.canDeleteCustomers && (
-              <Button variant="outline" icon={<Trash2 className="h-4 w-4" />} className="text-red-700 hover:bg-red-50" onClick={() => setDeleteOpen(true)}>
+              <Button variant="outline" icon={<Trash2 className="h-4 w-4" />} className="h-11 text-red-700 hover:bg-red-50" onClick={() => setDeleteOpen(true)}>
                 Hapus
               </Button>
             )}
           </>
         }
       />
+      {/* the counter's usual next step: an order for this customer, already chosen in the form */}
+      <Link to={`/pesanan/baru?customer=${c.id}`} className={clsx(newOrderLinkClass, 'mb-4 w-full sm:w-auto')}>
+        <Plus className="h-5 w-5" aria-hidden /> Pesanan baru
+      </Link>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-1">
@@ -166,7 +172,7 @@ export function PelangganDetailPage() {
               title="Paket prabayar"
               subtitle={myPackages.length === 0 ? 'Belum ada paket' : `${myPackages.length} paket`}
               action={
-                <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => setSellOpen(true)}>
+                <Button size="sm" className="h-11" icon={<Plus className="h-4 w-4" />} onClick={() => setSellOpen(true)}>
                   Jual paket
                 </Button>
               }
@@ -279,7 +285,7 @@ function OrderRow({ order, summary, totals, late }: { order: Order; summary: str
         <div className="mt-1 flex items-center justify-between gap-2">
           <span className="text-sm font-medium tabular-nums text-slate-900">{formatRupiah(totals.total)}</span>
           <span className="flex items-center gap-1.5">
-            {late && <Badge tone="danger">Terlambat</Badge>}
+            {late && <LateBadge />}
             {order.status !== 'cancelled' && <PayStatusBadge status={totals.payStatus} />}
           </span>
         </div>

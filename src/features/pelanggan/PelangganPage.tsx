@@ -2,15 +2,15 @@ import { useCallback, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { clsx } from 'clsx'
 import { MessageCircle, Plus, Search, UserPlus, Users } from 'lucide-react'
-import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, PageHeader } from '../../components/ui'
+import { Button, Card, EmptyState, ErrorState, LoadingState, PageHeader } from '../../components/ui'
 import { useLaundryData } from '../../hooks/useLaundryData'
 import { todayISO, whatsappLink } from '../../lib/format'
 import type { Customer } from '../../types/db'
 import { CustomerFormModal } from './CustomerFormModal'
 import { MissingPhoneLink } from './MissingPhoneLink'
-import { Avatar, FilterChips } from './components'
+import { Avatar, FilterChips, TenantBadge } from './components'
 import { useCustomerActions } from './useCustomerActions'
-import { useDebouncedValue } from './useDebouncedValue'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import {
   CUSTOMER_FILTERS,
   CUSTOMER_FILTER_LABEL,
@@ -24,7 +24,6 @@ import {
   matchesCustomerSearch,
   parseCustomerFilter,
   sortCustomersByVisit,
-  tenantBadgeText,
   type CustomerFilter,
   type CustomerStats,
 } from './customerUtils'
@@ -160,7 +159,6 @@ export function PelangganPage() {
  */
 function CustomerRow({ customer, stats, today }: { customer: Customer; stats: CustomerStats; today: string }) {
   const wa = whatsappLink(customer.phone)
-  const badge = tenantBadgeText(customer)
   return (
     <li data-testid="customer-row" data-name={customer.name} data-tenant={customer.is_tenant ? '1' : '0'} className="flex items-stretch">
       <Link to={`/pelanggan/${customer.id}`} data-testid="customer-link" className="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-3 py-2 hover:bg-brand-50/50">
@@ -168,7 +166,7 @@ function CustomerRow({ customer, stats, today }: { customer: Customer; stats: Cu
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-semibold text-slate-900">{customer.name}</span>
-            {badge && <Badge tone="brand">{badge}</Badge>}
+            <TenantBadge customer={customer} />
           </span>
           {/* two chunks that sit on one line where they fit and wrap on a narrow phone, so the order count is never cut */}
           <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-500">

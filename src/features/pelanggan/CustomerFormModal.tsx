@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Input, Modal, Textarea, useToast } from '../../components/ui'
+import { Button, Input, Modal, Switch, Textarea, useToast } from '../../components/ui'
 import type { Customer } from '../../types/db'
 import { customerToForm, EMPTY_CUSTOMER_FORM, phoneHint, validateCustomerForm, type CustomerFormErrors, type CustomerFormValues } from './customerUtils'
-import { Switch } from './components'
 import type { CustomerActions } from './useCustomerActions'
 
 export interface CustomerFormModalProps {

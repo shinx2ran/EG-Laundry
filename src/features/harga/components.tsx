@@ -1,7 +1,7 @@
-import { useId, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { ChevronDown, ChevronUp, Pencil } from 'lucide-react'
-import { Badge } from '../../components/ui'
+import { Badge, Segmented } from '../../components/ui'
 import type { PackageCatalogItem, Service, Unit } from '../../types/db'
 import { UNITS } from '../../types/db'
 import { formatRupiah } from '../../lib/format'
@@ -9,51 +9,12 @@ import { UNIT_GROUP_LABEL, describeDays, describeMinQty, describePackageContent,
 
 // ---------- form widgets ----------
 
-/** A full-width switch row (44px tall): the label and the hint are the tap target, the toggle shows the state. */
-export function Switch({ label, hint, checked, onChange, disabled }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
-  const labelId = useId()
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-labelledby={labelId}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-1 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <span className="min-w-0">
-        <span id={labelId} className="block text-sm font-medium text-slate-700">
-          {label}
-        </span>
-        {hint && <span className="block text-xs text-slate-500">{hint}</span>}
-      </span>
-      <span aria-hidden className={clsx('relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors', checked ? 'bg-brand-700' : 'bg-slate-300')}>
-        <span className={clsx('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-6' : 'translate-x-1')} />
-      </span>
-    </button>
-  )
-}
-
-/** Per kg / Per pcs as a segmented control (SPEC 3.1 unit). */
+/** Per kg / Per pcs as a segmented control (SPEC 3.1 unit); the label sits above it like an input's. */
 export function UnitPicker({ value, onChange, label = 'Satuan' }: { value: Unit; onChange: (unit: Unit) => void; label?: string }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-sm font-medium text-slate-700">{label}</span>
-      <div role="radiogroup" aria-label={label} className="grid grid-cols-2 rounded-lg border border-slate-200 bg-white p-1 text-sm">
-        {UNITS.map((u) => (
-          <button
-            key={u}
-            type="button"
-            role="radio"
-            aria-checked={u === value}
-            onClick={() => onChange(u)}
-            className={clsx('min-h-11 rounded-md px-2 font-medium transition-colors', u === value ? 'bg-brand-700 text-white' : 'text-slate-600 hover:bg-slate-100')}
-          >
-            {UNIT_GROUP_LABEL[u]}
-          </button>
-        ))}
-      </div>
+      <Segmented label={label} value={value} options={UNITS.map((u) => ({ key: u, label: UNIT_GROUP_LABEL[u] }))} onChange={onChange} />
     </div>
   )
 }

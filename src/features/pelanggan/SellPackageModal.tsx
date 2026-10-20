@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Button, Input, Modal, Select, Textarea, useToast } from '../../components/ui'
+import { Button, Input, Modal, Row, Select, Textarea, useToast } from '../../components/ui'
 import type { Customer, PackageCatalogItem, PaymentMethod, Service } from '../../types/db'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL } from '../../types/db'
 import { formatDate, formatQty, formatRupiah, todayISO } from '../../lib/format'
 import { packageExpiry, validatePackageSale } from './customerUtils'
-import { Row } from './components'
 import type { CustomerActions } from './useCustomerActions'
 
 export interface SellPackageModalProps {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Input, Modal, MoneyInput, Textarea, useToast } from '../../components/ui'
+import { Button, Input, Modal, MoneyInput, Row, Switch, Textarea, useToast } from '../../components/ui'
 import { ORDER_STATUS_LABEL, type Order, type OrderItem, type Service } from '../../types/db'
 import { ERR_PAYMENT_EXCEEDS, orderTotals, promisedDate, validateOrderDraft } from '../../domain/pricing'
 import type { LaundryData } from '../../hooks/useLaundryData'
@@ -8,7 +8,6 @@ import { RecordHistory } from '../settings/audit/RecordHistory'
 import { draftLines, draftSummary, keepOldPrices, packageChoice, rowPackageChoice, rowProblem, rowsFromItems, rowsToDraftItems, type DraftRow } from './orderForm'
 import { datesProblem, isClosed, totalBelowPaidMessage } from './orderUtils'
 import { OrderItemsEditor } from './OrderItemsEditor'
-import { Row, Switch } from './components'
 import type { OrderActions } from './useOrderActions'
 
 type ModalData = Pick<LaundryData, 'services' | 'serviceById' | 'customerPackages' | 'packagesByCustomer' | 'orderItems' | 'orders' | 'payments'>

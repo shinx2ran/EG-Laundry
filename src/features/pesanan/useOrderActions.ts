@@ -8,7 +8,7 @@
 import { useMemo } from 'react'
 import { useOrg } from '../../hooks/useOrg'
 import { useInvalidate } from '../../hooks/useTable'
-import type { Customer, CustomerPackage, Order, OrderItem, Payment, PaymentMethod, Service } from '../../types/db'
+import type { CustomerPackage, Order, OrderItem, Payment, PaymentMethod, Service } from '../../types/db'
 import { ORDER_NUMBER_TAKEN_MESSAGE } from '../../lib/repo/types'
 import {
   ERR_PAYMENT_EXCEEDS,
@@ -23,7 +23,6 @@ import {
 } from '../../domain/pricing'
 import { todayISO } from '../../lib/format'
 import {
-  CUSTOMER_NAME_MESSAGE,
   DATE_RE,
   PAYMENT_DATE_MESSAGE,
   PAYMENT_POSITIVE_MESSAGE,
@@ -90,11 +89,6 @@ export interface EditOrderInput {
   discount: number
   notes: string | null
   items: EditOrderItem[]
-}
-
-export interface NewCustomerInput {
-  name: string
-  phone?: string | null
 }
 
 /** The order was saved but a later step (its payment) failed: the screen still opens the order. */
@@ -420,25 +414,6 @@ export function useOrderActions() {
       }
     }
 
-    /** 'Tambah pelanggan baru' inside the order form: name required, phone may follow later (SPEC 3.2). */
-    async function createCustomer(input: NewCustomerInput): Promise<Customer> {
-      const name = input.name.trim()
-      if (!name) throw new Error(CUSTOMER_NAME_MESSAGE)
-      try {
-        return await repo.insert('customers', {
-          name,
-          phone: input.phone?.trim() || null,
-          is_tenant: false,
-          room_name: null,
-          kos_tenant_id: null,
-          address: null,
-          notes: null,
-        })
-      } finally {
-        await invalidate('customers')
-      }
-    }
-
     return {
       isAdmin,
       /** Ubah allowed for this role on this order */
@@ -453,7 +428,6 @@ export function useOrderActions() {
       updatePayment,
       deletePayment,
       deleteOrder,
-      createCustomer,
     }
   }, [repo, role, invalidate])
 }

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { clsx } from 'clsx'
-import { LayoutDashboard, WashingMachine, Users, BarChart3, Settings, LogOut, FlaskConical } from 'lucide-react'
+import { LayoutDashboard, WashingMachine, Users, Tags, BarChart3, Settings, LogOut, FlaskConical } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useOrg } from '../hooks/useOrg'
 import { BackupReminderBanner } from './BackupReminderBanner'
@@ -22,6 +22,8 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/pesanan', label: 'Pesanan', icon: WashingMachine },
   { to: '/pelanggan', label: 'Pelanggan', icon: Users },
+  // staff read it too (SPEC 3.10); on phones it is reached through Pengaturan -> Daftar harga
+  { to: '/harga', label: 'Daftar harga', icon: Tags },
   { to: '/laporan', label: 'Laporan', icon: BarChart3, adminOnly: true },
   { to: '/pengaturan', label: 'Pengaturan', shortLabel: 'Atur', icon: Settings },
 ]
