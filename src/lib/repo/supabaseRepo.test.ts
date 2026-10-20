@@ -88,3 +88,36 @@ describe('SupabaseRepo.update', () => {
     await expect(repo.update('invitations', 'x', { label: 'x' }, 'org-1')).rejects.toThrow('Data tidak dapat dipindah ke organisasi lain.')
   })
 })
+
+describe('SupabaseRepo.list paging', () => {
+  /** A table read newest first, 1000 rows per page; `between` runs after the first page (another phone writes). */
+  function pagedClient(rows: { id: string }[], between: (rows: { id: string }[]) => void) {
+    const ranges: [number, number][] = []
+    const builder = {
+      select: () => builder,
+      eq: () => builder,
+      order: () => builder,
+      range: (from: number, to: number) => {
+        ranges.push([from, to])
+        const page = rows.slice(from, to + 1)
+        if (ranges.length === 1) between(rows)
+        return Promise.resolve({ data: page, error: null })
+      },
+    }
+    const sb = { from: () => builder }
+    return { repo: new SupabaseRepo(sb as unknown as SupabaseClient), ranges }
+  }
+
+  it('a payment recorded on another phone between two pages is not counted twice', async () => {
+    const rows = Array.from({ length: 1500 }, (_, i) => ({ id: `p${String(1500 - i).padStart(4, '0')}` }))
+    // the new payment is the newest: every older row moves one place down, p0501 comes again on page 2
+    const { repo, ranges } = pagedClient(rows, (r) => r.unshift({ id: 'p1501' }))
+    const listed = await repo.list('payments')
+    expect(ranges).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ])
+    expect(listed).toHaveLength(1500)
+    expect(new Set(listed.map((r) => r.id)).size).toBe(1500)
+  })
+})

@@ -40,8 +40,12 @@ export class SupabaseRepo implements Repo {
 
   async list<T extends TableName>(table: T, opts: ListOptions<Row<T>> = {}): Promise<Row<T>[]> {
     // PostgREST caps responses (default 1000 rows); page through so yearly reports never silently truncate.
+    // Offset paging shifts when another phone inserts or deletes between two pages (lists are newest first): a row
+    // can then arrive twice, which would count a payment twice. Rows are kept once, by id.
     const PAGE = 1000
     const all: Row<T>[] = []
+    const seen = new Set<string>()
+    let fetched = 0
     for (let from = 0; ; from += PAGE) {
       let q = this.sb.from(table).select('*')
       for (const [col, val] of Object.entries(opts.where ?? {})) {
@@ -56,13 +60,21 @@ export class SupabaseRepo implements Repo {
       else q = q.order('created_at', { ascending: false })
       // stable secondary order so paging never skips/duplicates rows with equal sort keys
       q = q.order('id', { ascending: true })
-      const remaining = opts.limit != null ? opts.limit - all.length : PAGE
+      const remaining = opts.limit != null ? opts.limit - fetched : PAGE
       const size = Math.min(PAGE, remaining)
       if (size <= 0) break
       const { data, error } = await q.range(from, from + size - 1)
       if (error) throw new Error(translateDbError(error))
       const rows = (data ?? []) as unknown as Row<T>[]
-      all.push(...rows)
+      fetched += rows.length
+      for (const row of rows) {
+        const id = (row as { id?: unknown }).id
+        if (typeof id === 'string') {
+          if (seen.has(id)) continue
+          seen.add(id)
+        }
+        all.push(row)
+      }
       if (rows.length < size) break
     }
     return all
