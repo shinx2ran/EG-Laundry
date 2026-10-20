@@ -9,7 +9,7 @@
  *   database; created_at is kept so lists stay in their old order.
  * - Order: services → package_catalog → customers → customer_packages → orders → order_items → payments, i.e.
  *   every parent before its children, packages before the items that draw on them, items before the payments
- *   (payments_limit compares payments with the items' total).
+ *   (payments_limit compares payments with the items' total); items of cancelled orders before the others.
  * - What is already online is reused instead of duplicated: a service with the same name and unit, a catalog
  *   package with the same name for that service, a customer with the same phone number (one match only).
  * - The Mode Demo sample data (buildDemoDb, fixed 'demo-…' ids) stays behind unless includeSample: the price list
@@ -330,6 +330,11 @@ export function planDemoImport(backup: ParsedBackup, existing: ExistingOnline = 
     }
     chosen.order_items.add(id)
   }
+  // package_use_guard counts an item's own qty even when its order is cancelled (only other cancelled items are
+  // left out). Items of cancelled orders therefore go first, while no other use of their package is online yet:
+  // a package that a later order took in full again (allowed, SPEC 3.4) is then accepted as in Mode Demo.
+  const onCancelled = (itemId: string) => valid.orders.get(valid.order_items.get(itemId)!.order_id as string)!.status === 'cancelled'
+  chosen.order_items = new Set([...chosen.order_items].sort((a, b) => Number(onCancelled(b)) - Number(onCancelled(a))))
 
   for (const [id, row] of valid.customer_packages) {
     if (!includeSample && sampleIds.has(id) && !neededPackages.has(id)) continue

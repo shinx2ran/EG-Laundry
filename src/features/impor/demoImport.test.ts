@@ -286,6 +286,36 @@ describe('runDemoImport', () => {
     expect(demoImportMessage(result)).toBe('Pemindahan berhenti saat menyimpan layanan: Pembayaran melebihi total pesanan. Belum ada data yang tersimpan online.')
   })
 
+  it('items of a cancelled order go first, so a package taken in full again by a later edit is accepted', async () => {
+    // Sari's 20 kg: order B took 10 kg, order A 10 kg; A was cancelled, then B was raised to 20 kg (b1 stays first)
+    const db = buildDemoDb(new Date(2026, 9, 20))
+    const org_id = DEMO_ORG_ID
+    const ts = (h: number) => ({ created_at: `2026-10-1${h}T02:00:00.000Z`, updated_at: `2026-10-1${h}T02:00:00.000Z` })
+    const id = (n: number) => `7b2e4f10-0000-4000-8000-00000000000${n}`
+    db.customers.push({ id: id(1), org_id, name: 'Sari', phone: '0812-3456-0009', is_tenant: false, room_name: null, kos_tenant_id: null, address: null, notes: null, ...ts(1) })
+    db.customer_packages.push({
+      id: id(2), org_id, customer_id: id(1), catalog_id: DEMO_CATALOG_ID, name: 'Paket 20 kg cuci setrika', service_id: DEMO_SERVICE_ID.cuciSetrika,
+      qty_total: 20, price: 140_000, purchased_at: '2026-10-11', expires_at: null, method: 'cash', notes: null, ...ts(1),
+    })
+    const order = (oid: string, number: string, status: 'received' | 'cancelled', h: number) => ({
+      id: oid, org_id, order_number: number, customer_id: id(1), received_at: '2026-10-12', promised_at: null, express: false, status, ready_at: null, picked_up_at: null, discount: 0, notes: null, ...ts(h),
+    })
+    db.orders.push(order(id(3), 'LD-202610-0201', 'received', 2), order(id(4), 'LD-202610-0202', 'cancelled', 3))
+    const item = (iid: string, oid: string, qty: number, h: number) => ({
+      id: iid, org_id, order_id: oid, service_id: DEMO_SERVICE_ID.cuciSetrika, service_name: 'Cuci setrika', unit: 'kg' as const, unit_price: 0, qty, line_total: 0, customer_package_id: id(2), notes: null, ...ts(h),
+    })
+    db.order_items.push(item(id(5), id(3), 20, 2), item(id(6), id(4), 10, 3))
+
+    const plan = planDemoImport(parsed(db), undefined, { now: NOW })
+    expect(plan.tables.order_items.map((i) => i.qty)).toEqual([10, 20])
+    const { local, repo } = onlineRepo()
+    // one row at a time: like one INSERT statement, whose trigger sees the rows written before it
+    const result = await runDemoImport(plan, (table, rows) => repo.insertMany(table, rows as never), { chunkSize: 1 })
+    expect(result.error).toBeNull()
+    const after = local.snapshot()
+    expect(packageRemaining(after.customer_packages[0], after.order_items, after.orders)).toBe(0)
+  })
+
   const NETWORK = 'Tidak dapat terhubung ke server. Periksa koneksi internet.'
   const undoOps = (repo: OrgRepo): UndoOps => ({
     remove: (table, id) => repo.remove(table, id),
