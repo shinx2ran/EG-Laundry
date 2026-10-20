@@ -44,7 +44,8 @@ fungsi murni yang diuji dengan Vitest; alur layar diuji dengan Playwright di vie
 ### 2.2 Pembatasan staf (ditegakkan database)
 - Tabel peran ada di **3.10**: daftar harga dan katalog paket hanya admin (RLS update/delete); pesanan, item,
   pelanggan, paket terjual dan pembayaran boleh ditambah staf; hapus pesanan/pelanggan/paket, ubah pesanan yang
-  sudah Selesai/Dibatalkan (`orders_done_guard`) dan ubah/hapus pembayaran hanya admin; `created_by` diisi dari
+  sudah Selesai/Dibatalkan (`orders_done_guard`), ubah/hapus pembayaran dan ubah paket terjual selain catatannya
+  (`customer_packages_guard`: harga, metode, tanggal, qty, pelanggan, layanan) hanya admin; `created_by` diisi dari
   `auth.uid()`; `org_id` tidak bisa dipindah (`keep_org_id`). Aturan yang sama diperiksa di aplikasi (hook aksi
   menolak sebelum menulis; UI menyembunyikan aksi) dan `translateDbError` menampilkan pesan server bila ditolak.
 
@@ -72,7 +73,28 @@ fungsi murni yang diuji dengan Vitest; alur layar diuji dengan Playwright di vie
   (`backup.yml`, role `eg_laundry_backup` yang hanya bisa `export_backup()`), aktif setelah rahasia
   `BACKUP_DB_PASSWORD` dan `PGUSER` diisi saat go-live.
 - Mode Demo: **Unduh / Pulihkan dari JSON** (validasi zod, unduh otomatis sebelum menimpa), **Reset data demo**,
-  pengingat cadangan > 7 hari, `navigator.storage.persist()`, layar galat bila data perangkat rusak.
+  pengingat cadangan > 7 hari, `navigator.storage.persist()`, layar galat bila data perangkat rusak. Dua salinan
+  aplikasi di satu perangkat (PWA terpasang dan tab browser) berbagi data yang sama: `LocalRepo` membaca ulang
+  penyimpanan sebelum setiap penulisan (tidak menimpa data salinan lain) dan memuat ulang layar saat salinan lain
+  menyimpan (event `storage`).
+- **Pindahkan data Mode Demo ke online** (Pengaturan, pemilik/admin): membawa data yang dicatat di Mode Demo ke
+  laundry online lewat berkas **Unduh cadangan JSON** dari Mode Demo (dibaca di browser, `planDemoImport()` murni
+  dengan unit test).
+  - Hanya di Mode Online dan hanya selama laundry online **belum punya pesanan**: kartu disembunyikan begitu ada
+    pesanan, dan aksinya memeriksa lagi tepat sebelum menulis (nomor pesanan tidak bisa bentrok). Di Mode Demo kartu
+    tampil tanpa tombol ("Tersedia setelah terhubung ke Supabase").
+  - Daftar harga (layanan, katalog paket) **selalu** ikut. Pelanggan, paket terjual dan pesanan **contoh** Mode Demo
+    (id `demo-…` dari 3.11) tertinggal kecuali **Sertakan data contoh Mode Demo** dinyalakan; pelanggan/paket contoh
+    yang dipakai data sendiri tetap ikut, pesanan contoh tidak.
+  - Yang sudah ada online dipakai, tidak digandakan: layanan dengan nama + unit sama, paket katalog dengan nama +
+    layanan sama, pelanggan dengan satu nomor HP yang cocok. Setiap baris baru mendapat **UUID baru** dan semua
+    referensi dipetakan ulang; `org_id` dan `created_by` dari server, `created_at` dipertahankan. Baris yang akan
+    ditolak database dilewati (dan baris yang bergantung padanya), jumlahnya tampil di pratinjau; pembayaran tidak
+    pernah melebihi total pesanannya.
+  - Urutan: layanan → katalog → pelanggan → paket terjual → pesanan → item (item pesanan yang dibatalkan dulu) →
+    pembayaran, per 200 baris. **Berhenti di galat pertama**; yang sudah tersimpan oleh pemindahan itu lalu dihapus
+    lagi (pesanan dulu, item dan pembayarannya ikut), jadi pemilik cukup mencoba lagi. Bila penghapusan itu juga
+    gagal (koneksi masih putus), pesan menyebut apa yang sudah ada online.
 - Penyimpanan browser memakai awalan `eglaundry.` sehingga tidak bercampur dengan aplikasi kos di HP yang sama.
 
 ### 2.7 Konfigurasi publik untuk build
@@ -106,7 +128,7 @@ aplikasi; di Mode Online aturan yang sama juga dijaga database (check constraint
 | Kolom | Isi |
 |---|---|
 | `name` | wajib |
-| `phone` | opsional; disimpan apa adanya, dicocokkan lewat `normalizePhone` (+62…) |
+| `phone` | opsional; disimpan apa adanya, dicocokkan lewat `normalizePhone` (+62…; angka 0 setelah +62 dibuang) |
 | `is_tenant` | **Anak kos**: pelanggan ini penyewa EG Kost |
 | `room_name` | kamar (teks, mis. "B3"), hanya bermakna bila `is_tenant` |
 | `kos_tenant_id` | id penyewa di Woombad hasil impor (3.8); dipakai untuk mencocokkan ulang walau nomor HP berubah |
@@ -162,7 +184,9 @@ baris, supaya tidak pernah tidak sinkron (beda dari Woombad yang menyimpan statu
   kedaluwarsa), `active`.
 - **Pembelian** (`customer_packages`): `customer_id`, `catalog_id` (null bila paket dihapus), salinan `name`,
   `service_id`, `qty_total`, `price`, `purchased_at`, `expires_at` (= purchased + valid_days), `method`
-  (`cash|transfer|qris`), `notes`. Pembelian dicatat sebagai **uang masuk** pada `purchased_at`.
+  (`cash|transfer|qris`), `notes`. Pembelian dicatat sebagai **uang masuk** pada `purchased_at`. Staf menjual dan
+  boleh memperbaiki catatannya; mengubah isi lain hanya pemilik/admin (`customer_packages_guard`). Paket yang salah
+  jual dan belum dipakai item mana pun dihapus pemilik/admin lewat **Hapus paket** di halaman pelanggan.
 - **Sisa** = `qty_total − Σ order_items.qty` (item dengan `customer_package_id` ini pada pesanan yang tidak dibatalkan),
   dihitung saat dibaca. Item pesanan hanya boleh memakai paket pelanggan yang sama, layanan yang sama, belum kedaluwarsa
   pada `received_at`, dan `qty ≤ sisa` (ditolak kalau tidak).
@@ -174,7 +198,11 @@ baris, supaya tidak pernah tidak sinkron (beda dari Woombad yang menyimpan statu
 |---|---|
 | `order_id`, `amount` (> 0), `paid_at` (tanggal), `method` (`cash|transfer|qris`), `notes`, `created_by` |
 
-- Boleh DP saat pesanan masuk dan pelunasan saat diambil; `amount ≤ outstanding` (tidak ada lebih bayar).
+- Boleh DP saat pesanan masuk dan pelunasan saat diambil; `amount ≤ outstanding` (tidak ada lebih bayar). Pesanan
+  Dibatalkan tidak menerima pembayaran (`payments_limit`; pembayaran baru mengunci pesanannya, jadi bayar dan batal
+  bersamaan di dua HP tidak bisa sama-sama lolos).
+- **Diambil** dengan pelunasan: pembayaran dicatat dulu, lalu status. Bila status gagal setelah pembayaran tersimpan,
+  dialog beralih ke "status saja", sehingga mencoba lagi tidak mencatat uang yang sama dua kali.
 - Ubah/hapus pembayaran: pemilik/admin (RLS), dengan riwayat perubahan seperti Woombad 7.5.
 - **Omzet (uang masuk)** = Σ `payments.amount` per `paid_at` + Σ `customer_packages.price` per `purchased_at`.
   **Piutang** = Σ outstanding pesanan yang belum dibatalkan. Dua angka ini yang dipakai Dashboard dan Laporan.
@@ -195,11 +223,23 @@ Rentang hari / minggu / bulan / tahun / khusus (seperti Woombad):
   semua tombol Kirim promo. Unduh XLSX / CSV untuk setiap tabel.
 
 ### 3.8 Impor penyewa dari Woombad (Pengaturan → Impor penyewa, pemilik/admin)
-- Masukan: berkas cadangan Woombad (JSON `{version:1, tables:{tenants, leases, rooms, …}}`, satu atau beberapa
-  organisasi). Tidak ada sambungan ke database kos: berkas diunggah dari HP, dibaca di browser, lalu hasilnya disimpan ke
-  database laundry sendiri.
-- Untuk setiap penyewa dengan sewa aktif (status `active`): cocokkan pelanggan laundry lewat `kos_tenant_id`, lalu lewat
-  `normalizePhone(phone)`. Cocok → set `is_tenant=true`, `room_name` = kamar sewa aktif, simpan `kos_tenant_id`.
+- Masukan: **satu** berkas cadangan Woombad, salah satu dari:
+  - **Unduh cadangan lengkap** satu organisasi: `{version:1, exportedAt, orgName, tables:{tenants, leases, rooms, …}}`;
+  - **cadangan mingguan** (`export_backup()`): array berisi berkas seperti di atas, satu per organisasi; baris semua
+    organisasi digabung (baris pertama dengan id yang sama dipakai);
+  - cadangan Mode Demo Woombad lama: tabel langsung di tingkat atas.
+
+  Hanya `tenants`, `leases` dan `rooms` yang dibaca. Versi berkas lebih baru dari 1 ditolak; cadangan EG Laundry yang
+  terpilih tidak sengaja ditolak dengan pesan sendiri. Tidak ada sambungan ke database kos: berkas diunggah dari HP,
+  dibaca di browser, lalu hasilnya disimpan ke database laundry sendiri.
+- **Penyewa saat ini** dinilai pada hari ini dengan aturan hunian Woombad (`isLeaseActiveOn`): sewa `active`
+  menempati kamar sejak `start_date` (juga lewat `end_date` selama belum check-out); sewa `ended` sampai sehari
+  sebelum `checkout_date`, atau sampai `end_date` bila tanpa check-out; sewa `cancelled` tidak pernah. Bila beberapa
+  sewa menempati hari ini, `active` mengalahkan `ended`, lalu `start_date` terbaru. Tanpa sewa yang menempati hari
+  ini, booking (`active` dengan `start_date` nanti) juga dihitung, dengan kamarnya. Penyewa yang semua sewanya sudah
+  berakhir = penyewa lama; penyewa tanpa sewa (atau hanya sewa batal) diabaikan.
+- Untuk setiap penyewa saat ini: cocokkan pelanggan laundry lewat `kos_tenant_id`, lalu lewat
+  `normalizePhone(phone)`. Cocok → set `is_tenant=true`, `room_name` = kamar sewa tadi, simpan `kos_tenant_id`.
   Tidak cocok → (centang, bawaan hidup) buat pelanggan baru dari nama + HP + kamar. Penyewa yang sewanya sudah berakhir
   dan sebelumnya ditandai anak kos → `is_tenant=false` (room dikosongkan), kecuali centang "jangan ubah yang lama".
 - Pratinjau sebelum menyimpan: N cocok (diperbarui), N baru, N dinonaktifkan, N tanpa HP (hanya cocok lewat
@@ -222,7 +262,8 @@ Rentang hari / minggu / bulan / tahun / khusus (seperti Woombad):
 | Pelanggan: tambah/ubah | ✔ | ✔ |
 | Pelanggan: hapus; Impor penyewa | ✔ | ✘ |
 | Daftar harga, katalog paket | ✔ | baca saja |
-| Jual paket prabayar | ✔ | ✔ |
+| Jual paket prabayar (staf: lalu hanya ubah catatannya) | ✔ | ✔ |
+| Paket terjual: ubah harga/tanggal/qty/pelanggan, hapus | ✔ | ✘ |
 | Laporan, Riwayat perubahan, Anggota, Data (cadangan) | ✔ | ✘ (menu disembunyikan; data pesanan tetap terbaca) |
 
 ### 3.11 Data contoh (Mode Demo)

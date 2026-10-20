@@ -54,7 +54,7 @@ setelah [peluncuran online](#peluncuran-online) alamat yang sama menjadi mode on
 |---|---|---|
 | **Pemilik** | Akun pertama | Semua, termasuk mengubah peran anggota dan menghapus admin. |
 | **Admin** | Pasangan | Semua data: daftar harga, pesanan, pelanggan, koreksi, Laporan, undang anggota, cadangan, Riwayat perubahan. Tidak bisa mengubah peran anggota. |
-| **Staf** | Kasir / pegawai | Catat pesanan, pelanggan, pembayaran, jual paket; ubah pesanan **sampai Selesai**. **Tidak bisa** menghapus pesanan, mengubah/menghapus pembayaran, mengubah daftar harga atau katalog paket, menghapus pelanggan, atau impor penyewa. Tidak melihat **Laporan**, **Anggota**, **Data** (cadangan) dan **Riwayat perubahan**. |
+| **Staf** | Kasir / pegawai | Catat pesanan, pelanggan, pembayaran, jual paket; ubah pesanan **sampai Selesai**. **Tidak bisa** menghapus pesanan, mengubah/menghapus pembayaran, mengubah paket terjual (selain catatannya) atau menghapusnya, mengubah daftar harga atau katalog paket, menghapus pelanggan, atau impor penyewa. Tidak melihat **Laporan**, **Anggota**, **Data** (cadangan) dan **Riwayat perubahan**. |
 
 Batasan dijaga oleh database (Row Level Security), bukan hanya oleh tampilan aplikasi (`docs/SPEC.md` bagian 3.10).
 
@@ -66,8 +66,9 @@ Batasan dijaga oleh database (Row Level Security), bukan hanya oleh tampilan apl
 | Cucian selesai | Buka pesanan → **Siap diambil** → **Kabari: siap diambil** (WhatsApp) |
 | Cucian diambil | Dashboard → Siap diambil → **Diambil**; bila masih ada sisa, dialog yang sama menawarkan **Terima pembayaran** (pelunasan) |
 | Pelanggan membeli paket prabayar | **Pelanggan** → pilih pelanggan → **Jual paket**; pesanan berikutnya menawarkan "Pakai paket" |
+| Paket salah jual (pelanggan/paket keliru) | Pemilik/admin: **Pelanggan** → pilih pelanggan → **Hapus paket** (hanya paket yang belum dipakai pesanan) |
 | Promo untuk pelanggan yang lama tidak datang | **Laporan** → **Lama tidak datang** → **Kirim promo** (teks dari Pengaturan → Pesan WhatsApp) |
-| Menandai anak kos EG Kost | **Pengaturan** → **Impor penyewa dari Woombad** → pilih berkas cadangan Woombad → periksa pratinjau → **Terapkan** |
+| Menandai anak kos EG Kost | **Pengaturan** → **Impor penyewa dari Woombad** → pilih berkas cadangan Woombad (**Unduh cadangan lengkap** atau berkas cadangan mingguan) → periksa pratinjau → **Terapkan** |
 
 ## Pindah ke online
 
@@ -85,7 +86,7 @@ Kerjakan berurutan, sekali saja, **setelah** modul laundry selesai dan dicoba di
 | 2 | Operator (Claude) | Buat proyek Supabase (Free, region Singapore); **SQL Editor** → jalankan seluruh `supabase/schema.sql`; `node scripts/new-setup-code.mjs` → jalankan `select public.set_setup_code('…')`; isi `.env.production` dengan **Project URL** dan **Publishable key** (`sb_publishable_…`); `node scripts/check-public-config.mjs`; commit ke `master`. Isi `PGUSER` di `backup.yml` (`eg_laundry_backup.<project-ref>`) dan beri tahu kata sandi role cadangan untuk rahasia `BACKUP_DB_PASSWORD`. |
 | 3 | Pemilik | Dashboard Supabase → **Authentication**: *Confirm email* **OFF**; *Minimum password length* 8; **Site URL** `https://shinx2ran.github.io/EG-Laundry/`; **Redirect URL** `https://shinx2ran.github.io/EG-Laundry/reset-sandi`. |
 | 4 | Pemilik | Buka alamat aplikasi → **Buat akun** (email sama dengan akun Supabase) → **Masukkan kode** → kode pemilik → **Gabung**. |
-| 5 | Pemilik | Bila ada data Mode Demo yang mau dibawa: **Pengaturan → Pindahkan data Mode Demo ke online** → pilih berkas dari langkah 1 (hanya selama laundry online belum punya pesanan; data contoh Mode Demo tertinggal kecuali "Sertakan data contoh Mode Demo" dinyalakan). |
+| 5 | Pemilik | Bila ada data Mode Demo yang mau dibawa: **Pengaturan → Pindahkan data Mode Demo ke online** → pilih berkas dari langkah 1 (hanya selama laundry online belum punya pesanan; daftar harga selalu ikut, data contoh Mode Demo tertinggal kecuali "Sertakan data contoh Mode Demo" dinyalakan). Bila koneksi putus di tengah jalan, yang sempat tersimpan dihapus lagi: cukup coba lagi. |
 | 6 | Pemilik + staf | **Pengaturan → Anggota → Undang** → pilih peran → **Kirim lewat WhatsApp**. Penerima membuat akun lewat tautan itu. |
 | 7 | Pemilik | Repo → **Settings → Secrets → Actions**: `BACKUP_DB_PASSWORD`. Aktifkan 2FA di GitHub dan Supabase. |
 
