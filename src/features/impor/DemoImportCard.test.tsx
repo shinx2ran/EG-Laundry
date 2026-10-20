@@ -133,4 +133,33 @@ describe('useDemoImport', () => {
     await expect(result.current.moveToOnline(backup, true)).rejects.toThrow(ORDERS_EXIST_MESSAGE)
     expect(local.snapshot().services).toHaveLength(before)
   })
+
+  it('a move that stops halfway is undone, so the retry is allowed and nothing is doubled', async () => {
+    online('owner')
+    const backup = parseBackupText(demoBackupText())
+    const base = state.repo!
+    let fail = true
+    state.repo = {
+      ...base,
+      insertMany: (async (table: string, rows: never[]) => {
+        if (table === 'order_items' && fail) {
+          fail = false
+          throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet.')
+        }
+        return base.insertMany(table as 'orders', rows)
+      }) as OrgRepo['insertMany'],
+    }
+    const { result } = renderHook(() => useDemoImport(), { wrapper })
+    const stopped = await result.current.moveToOnline(backup, true)
+    expect(stopped).toMatchObject({ failedTable: 'order_items', undone: true })
+    expect(local.snapshot().orders).toHaveLength(0)
+    expect(local.snapshot().customer_packages).toHaveLength(0)
+
+    const moved = await result.current.moveToOnline(backup, true)
+    expect(moved.error).toBeNull()
+    const db = local.snapshot()
+    expect(db.orders).toHaveLength(40)
+    expect(db.customer_packages).toHaveLength(2)
+    expect(db.customers).toHaveLength(12)
+  })
 })

@@ -1,14 +1,16 @@
 /**
  * "Pindahkan data Mode Demo ke online": owner/admin only, online only, and only while the online laundry has no
  * orders yet (the card is hidden afterwards; the hook checks again right before writing). The plan is made from
- * what is online at that moment, so a service or customer added meanwhile is reused instead of duplicated.
+ * what is online at that moment, so a service or customer added meanwhile is reused instead of duplicated. When
+ * the import stops halfway (the network drops), what it wrote is removed again, so the owner can simply retry
+ * instead of being left with orders without items or payments and a blocked retry.
  */
 import { useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useOrg } from '../../hooks/useOrg'
 import type { ParsedBackup } from '../settings/data/backupFormat'
 import { planDemoImport, type DemoImportPlan, type ExistingOnline } from './demoImport'
-import { runDemoImport, type DemoImportProgress, type DemoImportResult } from './runDemoImport'
+import { runDemoImport, undoDemoImport, type DemoImportProgress, type DemoImportResult } from './runDemoImport'
 
 export const STAFF_DEMO_IMPORT_MESSAGE = 'Hanya pemilik/admin yang dapat memindahkan data Mode Demo.'
 export const LOCAL_DEMO_IMPORT_MESSAGE = 'Tersedia setelah terhubung ke Supabase.'
@@ -43,7 +45,12 @@ export function useDemoImport() {
       if ((await repo.list('orders', { limit: 1 })).length > 0) throw new Error(ORDERS_EXIST_MESSAGE)
       const plan = planDemoImport(backup, await existingOnline(), { includeSample })
       try {
-        return await runDemoImport(plan, (table, rows) => repo.insertMany(table, rows as never), { onProgress })
+        const result = await runDemoImport(plan, (table, rows) => repo.insertMany(table, rows as never), { onProgress })
+        if (result.error === null) return result
+        return await undoDemoImport(plan, result, {
+          remove: (table, id) => repo.remove(table, id),
+          exists: async (table, id) => (await repo.get(table, id)) !== null,
+        })
       } finally {
         await qc.invalidateQueries({ queryKey: ['org', repo.orgId] })
       }

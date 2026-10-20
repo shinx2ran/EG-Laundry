@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { buildDemoDb, DEMO_CATALOG_ID, DEMO_ORG_ID, DEMO_SERVICE_ID } from '../../lib/repo/demoSeed'
 import { LocalRepo, emptyLocalDb, type LocalDb } from '../../lib/repo/localRepo'
-import { bindOrg, PAYMENT_EXCEEDS_TOTAL_MESSAGE } from '../../lib/repo/types'
+import { bindOrg, PAYMENT_EXCEEDS_TOTAL_MESSAGE, type OrgRepo } from '../../lib/repo/types'
 import { orderTotals, packageRemaining } from '../../domain/pricing'
 import { buildBackupFile } from '../settings/data/backupFile'
 import { parseBackupText, type ParsedBackup } from '../settings/data/backupFormat'
 import { DEMO_IMPORT_ORDER, countsText, normalizeDemoRow, planDemoImport, plannedCounts, totalCount, type DemoImportPlan } from './demoImport'
-import { demoImportMessage, runDemoImport } from './runDemoImport'
+import { demoImportMessage, runDemoImport, undoDemoImport, type UndoOps } from './runDemoImport'
 
 const NOW = new Date('2026-10-20T03:00:00.000Z')
 const OWN = {
@@ -267,7 +267,13 @@ describe('runDemoImport', () => {
       if (table === 'orders') throw new Error('Anda tidak memiliki izin untuk tindakan ini.')
     })
     expect(calls).toEqual(['services', 'package_catalog', 'customers', 'customer_packages', 'orders'])
-    expect(result).toEqual({ written: { services: 6, package_catalog: 1, customers: 2, customer_packages: 1, orders: 0, order_items: 0, payments: 0 }, failedTable: 'orders', error: 'Anda tidak memiliki izin untuk tindakan ini.' })
+    expect(result).toEqual({
+      written: { services: 6, package_catalog: 1, customers: 2, customer_packages: 1, orders: 0, order_items: 0, payments: 0 },
+      failedTable: 'orders',
+      error: 'Anda tidak memiliki izin untuk tindakan ini.',
+      failedChunk: 2,
+      undone: null,
+    })
     expect(demoImportMessage(result)).toBe(
       'Pemindahan berhenti saat menyimpan pesanan: Anda tidak memiliki izin untuk tindakan ini. Sudah tersimpan online: 6 layanan, 1 paket katalog, 2 pelanggan, 1 paket terjual. Data itu tidak dihapus otomatis; periksa daftar harga dan pelanggan sebelum mencoba lagi agar tidak dobel.',
     )
@@ -278,5 +284,93 @@ describe('runDemoImport', () => {
     const result = await runDemoImport(plan, async () => Promise.reject(new Error(PAYMENT_EXCEEDS_TOTAL_MESSAGE)))
     expect(result.failedTable).toBe('services')
     expect(demoImportMessage(result)).toBe('Pemindahan berhenti saat menyimpan layanan: Pembayaran melebihi total pesanan. Belum ada data yang tersimpan online.')
+  })
+
+  const NETWORK = 'Tidak dapat terhubung ke server. Periksa koneksi internet.'
+  const undoOps = (repo: OrgRepo): UndoOps => ({
+    remove: (table, id) => repo.remove(table, id),
+    exists: async (table, id) => (await repo.get(table, id)) !== null,
+  })
+  const laundryRows = (db: LocalDb) => DEMO_IMPORT_ORDER.reduce((n, t) => n + db[t].length, 0)
+
+  it('a stop at the items is undone: no orders without items, and the retry moves everything once', async () => {
+    const backup = parsed(buildDemoDb(new Date(2026, 9, 20)))
+    const plan = planDemoImport(backup, undefined, { includeSample: true, now: NOW })
+    const { local, repo } = onlineRepo()
+    const stopped = await runDemoImport(plan, async (table, rows) => {
+      if (table === 'order_items') throw new Error(NETWORK)
+      return repo.insertMany(table, rows as never)
+    })
+    expect(stopped.written.orders).toBe(40)
+    const undone = await undoDemoImport(plan, stopped, undoOps(repo))
+    expect(undone.undone).toBe(true)
+    expect(totalCount(undone.written)).toBe(0)
+    expect(laundryRows(local.snapshot())).toBe(0)
+    expect(demoImportMessage(undone)).toBe(
+      `Pemindahan berhenti saat menyimpan item pesanan: ${NETWORK.replace(/\.$/, '')}. Yang sempat tersimpan sudah dihapus lagi, jadi belum ada data yang tersimpan online. Silakan coba lagi.`,
+    )
+
+    // the retry: every sold package once, so uang masuk is not counted twice
+    const retry = await runDemoImport(planDemoImport(backup, undefined, { includeSample: true, now: NOW }), (table, rows) => repo.insertMany(table, rows as never))
+    expect(retry.error).toBeNull()
+    const after = local.snapshot()
+    expect(after.customer_packages).toHaveLength(2)
+    expect(after.customers).toHaveLength(12)
+    expect(after.orders).toHaveLength(40)
+  })
+
+  it('a chunk whose answer was lost (written after all) is removed too; payments go with their orders', async () => {
+    const plan = planDemoImport(parsed(buildDemoDb(new Date(2026, 9, 20))), undefined, { includeSample: true, now: NOW })
+    const { local, repo } = onlineRepo()
+    const stopped = await runDemoImport(plan, async (table, rows) => {
+      const written = await repo.insertMany(table, rows as never)
+      if (table === 'payments') throw new Error(NETWORK)
+      return written
+    })
+    expect(stopped).toMatchObject({ failedTable: 'payments', failedChunk: plan.tables.payments.length, written: { payments: 0 } })
+    expect(local.snapshot().payments.length).toBeGreaterThan(0)
+    const undone = await undoDemoImport(plan, stopped, undoOps(repo))
+    expect(undone.undone).toBe(true)
+    expect(laundryRows(local.snapshot())).toBe(0)
+  })
+
+  it('rows that were online before are kept (reused, not part of the plan)', async () => {
+    const { local, repo } = onlineRepo()
+    const service = await repo.insert('services', { name: 'Cuci setrika', unit: 'kg', price: 8_000, price_express: 13_000, days_regular: 3, days_express: 1, min_qty: 2, sort_order: 2, active: true })
+    const customer = await repo.insert('customers', { name: 'Pak Joko', phone: '+6281234560001', is_tenant: false, room_name: null, kos_tenant_id: null, address: null, notes: null })
+    const plan = planDemoImport(parsed(demoDbWithOwnRows()), { services: [service], package_catalog: [], customers: [customer] }, { now: NOW })
+    expect(plan.reused).toMatchObject({ services: 1, customers: 1 })
+    const stopped = await runDemoImport(plan, async (table, rows) => {
+      if (table === 'payments') throw new Error(NETWORK)
+      return repo.insertMany(table, rows as never)
+    })
+    const undone = await undoDemoImport(plan, stopped, undoOps(repo))
+    expect(undone.undone).toBe(true)
+    const after = local.snapshot()
+    expect(after.services.map((s) => s.id)).toEqual([service.id])
+    expect(after.customers.map((c) => c.id)).toEqual([customer.id])
+    expect(laundryRows(after)).toBe(2)
+  })
+
+  it('when the removal fails too, the message says what is still online', async () => {
+    const plan = planDemoImport(parsed(demoDbWithOwnRows()), undefined, { now: NOW })
+    const { local, repo } = onlineRepo()
+    const stopped = await runDemoImport(plan, async (table, rows) => {
+      if (table === 'order_items') throw new Error(NETWORK)
+      return repo.insertMany(table, rows as never)
+    })
+    let removals = 0
+    const undone = await undoDemoImport(plan, stopped, {
+      ...undoOps(repo),
+      remove: async (table, id) => {
+        // the first order goes, then the connection is lost
+        if (removals++ > 0) throw new Error(NETWORK)
+        return repo.remove(table, id)
+      },
+    })
+    expect(undone.undone).toBe(false)
+    expect(undone.written).toEqual({ ...stopped.written, orders: stopped.written.orders - 1 })
+    expect(local.snapshot().orders).toHaveLength(undone.written.orders)
+    expect(demoImportMessage(undone)).toMatch(/^Pemindahan berhenti saat menyimpan item pesanan: .*Sudah tersimpan online: 6 layanan, 1 paket katalog, 2 pelanggan, 1 paket terjual, 1 pesanan\. Data itu gagal dihapus otomatis/)
   })
 })
