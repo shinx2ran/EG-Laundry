@@ -57,6 +57,9 @@ export function buildDemoDb(today: Date = new Date()): LocalDb {
     const [y, m, d] = dateISO.split('-').map(Number)
     return new Date(y, m - 1, d, hour, minute, second).toISOString()
   }
+  // status timestamps never lie in the future of the seed's clock (ISO strings in UTC compare as text)
+  const notAfterNow = (iso: string) => (iso <= now ? iso : now)
+  const minDate = (a: string, b: string) => (a <= b ? a : b)
 
   db.organizations.push({
     id: DEMO_ORG_ID,
@@ -191,8 +194,12 @@ export function buildDemoDb(today: Date = new Date()): LocalDb {
       }
     })
     const promised_at = promisedDate(received_at, spec.items.map((it) => serviceById.get(it.service)!), express)
-    const readyDate = promised_at
-    const pickupDate = addDaysISO(readyDate, i % 5 === 0 ? 1 : 0)
+    // finished on the promised day (15:00), but never after the seed's clock: work promised for today or later is
+    // ready today at 09:00 (or now, before 09:00); a pickup the day after never lands in the future either
+    const readyDate = promised_at < todayIso ? promised_at : todayIso
+    const pickupDate = minDate(addDaysISO(readyDate, i % 5 === 0 ? 1 : 0), todayIso)
+    const readyAt = notAfterNow(at(readyDate, readyDate === todayIso ? 9 : 15))
+    const pickedUpAt = notAfterNow(at(pickupDate, 17))
     const closed = spec.status === 'done' || spec.status === 'ready'
     const order: Order = {
       id: orderId,
@@ -203,8 +210,8 @@ export function buildDemoDb(today: Date = new Date()): LocalDb {
       promised_at,
       express,
       status: spec.status,
-      ready_at: closed ? at(readyDate, 15) : null,
-      picked_up_at: spec.status === 'done' ? at(pickupDate, 17) : null,
+      ready_at: closed ? readyAt : null,
+      picked_up_at: spec.status === 'done' ? pickedUpAt : null,
       discount: spec.discount ?? 0,
       notes: i === 6 ? 'Ada noda kopi di kemeja putih' : i === 2 ? 'Bed cover jangan disetrika' : null,
       created_at: at(received_at, 9, minute),

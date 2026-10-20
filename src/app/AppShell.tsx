@@ -88,22 +88,22 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5 md:px-6">
+          <div className="flex items-center justify-between gap-3 px-4 py-1.5 md:px-6 md:py-2.5">
             <div className="flex min-w-0 items-center gap-2 md:hidden">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-700 text-white text-sm font-bold">E</div>
               <span className="truncate text-sm font-semibold text-slate-900">EG Laundry</span>
             </div>
             {/* min-w-0: a long laundry name is cut short instead of pushing the logout button off the screen */}
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
               {/* the bottom tabs hold the daily entries only: Pengaturan (anggota, undangan, data) lives up here on phones */}
               <NavLink
                 to="/pengaturan"
                 aria-label="Pengaturan"
-                className={({ isActive }) => clsx('rounded-lg p-2 hover:bg-slate-100 md:hidden', isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600')}
+                className={({ isActive }) => clsx('inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-slate-100 md:hidden', isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600')}
               >
                 <Settings className="h-5 w-5" />
               </NavLink>
-              <button type="button" onClick={signOut} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden" aria-label="Keluar">
+              <button type="button" onClick={signOut} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 md:hidden" aria-label="Keluar">
                 <LogOut className="h-5 w-5" />
               </button>
             </div>

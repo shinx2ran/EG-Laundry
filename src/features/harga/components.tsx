@@ -65,9 +65,12 @@ export function ServiceRow({
             <span className={clsx('truncate text-sm font-semibold', service.active ? 'text-slate-900' : 'text-slate-500')}>{service.name}</span>
             {!service.active && <Badge tone="neutral">Nonaktif</Badge>}
           </span>
-          <span className="block text-sm tabular-nums text-slate-800">
+          {/* regular and express price on their own lines: never broken mid-price on a 360 px phone */}
+          <span className="block whitespace-nowrap text-sm tabular-nums text-slate-800" data-testid="price-regular">
             {priceText(service.price, service.unit)}
-            <span className="text-slate-500"> · express </span>
+          </span>
+          <span className="block whitespace-nowrap text-sm tabular-nums text-slate-800" data-testid="price-express">
+            <span className="text-slate-500">express </span>
             {service.price_express === null ? <span className="text-slate-400">—</span> : priceText(service.price_express, service.unit)}
           </span>
           <span className="block text-xs text-slate-500">

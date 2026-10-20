@@ -5,9 +5,13 @@ daftar harga, dan laporan. Dibangun dari kerangka aplikasi kos [Woombad](https:/
 berdiri sendiri: repo, database, dan data di HP terpisah.
 
 - **Pesanan**: cucian masuk per kg / per potong, express, paket prabayar; status Diterima → Proses → Siap diambil →
-  Diambil; lunas / belum bayar. *(modul laundry menyusul; lihat `docs/SPEC.md` bagian 3)*
-- **Pelanggan**: anak kos EG Kost ditandai, riwayat dan frekuensi cuci, pesan WhatsApp "cucian siap diambil".
-- **Laporan**: omzet harian/bulanan, pelanggan teratas, anak kos vs umum, pelanggan yang lama tidak datang.
+  Diambil; lunas / belum bayar (lihat `docs/SPEC.md` bagian 3).
+- **Dashboard**: masuk hari ini, sedang proses (yang terlambat merah), siap diambil dengan tombol WhatsApp dan Diambil,
+  belum bayar, uang masuk hari ini.
+- **Pelanggan**: anak kos EG Kost ditandai (impor dari cadangan Woombad), riwayat dan frekuensi cuci, pesan WhatsApp
+  "cucian siap diambil".
+- **Laporan**: uang masuk harian/bulanan, pesanan per layanan, anak kos vs umum, pelanggan, pelanggan yang lama tidak
+  datang dengan tombol **Kirim promo**; unduh XLSX / CSV.
 - **Online & multi-perangkat**: login email + kata sandi, data di Supabase (gratis), anggota baru bergabung dengan
   **kode undangan**. Bisa di-"install" ke layar utama seperti aplikasi biasa.
 
@@ -50,9 +54,26 @@ setelah [peluncuran online](#peluncuran-online) alamat yang sama menjadi mode on
 |---|---|---|
 | **Pemilik** | Akun pertama | Semua, termasuk mengubah peran anggota dan menghapus admin. |
 | **Admin** | Pasangan | Semua data: daftar harga, pesanan, pelanggan, koreksi, Laporan, undang anggota, cadangan, Riwayat perubahan. Tidak bisa mengubah peran anggota. |
-| **Staf** | Kasir / pegawai | Catat pesanan, pelanggan, pembayaran. **Tidak bisa** mengubah daftar harga atau pesanan/pembayaran yang sudah dicatat. Menu **Laporan** tidak ditampilkan. |
+| **Staf** | Kasir / pegawai | Catat pesanan, pelanggan, pembayaran, jual paket; ubah pesanan **sampai Selesai**. **Tidak bisa** menghapus pesanan, mengubah/menghapus pembayaran, mengubah daftar harga atau katalog paket, menghapus pelanggan, atau impor penyewa. Tidak melihat **Laporan**, **Anggota**, **Data** (cadangan) dan **Riwayat perubahan**. |
 
-Batasan dijaga oleh database (Row Level Security), bukan hanya oleh tampilan aplikasi.
+Batasan dijaga oleh database (Row Level Security), bukan hanya oleh tampilan aplikasi (`docs/SPEC.md` bagian 3.10).
+
+## Pemakaian sehari-hari
+
+| Kejadian | Di aplikasi |
+|---|---|
+| Pelanggan datang membawa cucian | Dashboard → **+ Pesanan baru** → pilih/tambah pelanggan, isi layanan dan berat → **Simpan pesanan** → **Kirim struk WhatsApp** |
+| Cucian selesai | Buka pesanan → **Siap diambil** → **Kabari: siap diambil** (WhatsApp) |
+| Cucian diambil | Dashboard → Siap diambil → **Diambil**; bila masih ada sisa, dialog yang sama menawarkan **Terima pembayaran** (pelunasan) |
+| Pelanggan membeli paket prabayar | **Pelanggan** → pilih pelanggan → **Jual paket**; pesanan berikutnya menawarkan "Pakai paket" |
+| Promo untuk pelanggan yang lama tidak datang | **Laporan** → **Lama tidak datang** → **Kirim promo** (teks dari Pengaturan → Pesan WhatsApp) |
+| Menandai anak kos EG Kost | **Pengaturan** → **Impor penyewa dari Woombad** → pilih berkas cadangan Woombad → periksa pratinjau → **Terapkan** |
+
+## Pindah ke online
+
+Selama `.env.production` kosong, aplikasi berjalan dalam Mode Demo. Langkah go-live ada di
+[Peluncuran online](#peluncuran-online); data yang sudah dicatat di Mode Demo dibawa lewat **Unduh cadangan JSON**
+(langkah 1) lalu **Pengaturan → Pindahkan data Mode Demo ke online** (langkah 5).
 
 ## Peluncuran online
 
@@ -64,8 +85,9 @@ Kerjakan berurutan, sekali saja, **setelah** modul laundry selesai dan dicoba di
 | 2 | Operator (Claude) | Buat proyek Supabase (Free, region Singapore); **SQL Editor** → jalankan seluruh `supabase/schema.sql`; `node scripts/new-setup-code.mjs` → jalankan `select public.set_setup_code('…')`; isi `.env.production` dengan **Project URL** dan **Publishable key** (`sb_publishable_…`); `node scripts/check-public-config.mjs`; commit ke `master`. Isi `PGUSER` di `backup.yml` (`eg_laundry_backup.<project-ref>`) dan beri tahu kata sandi role cadangan untuk rahasia `BACKUP_DB_PASSWORD`. |
 | 3 | Pemilik | Dashboard Supabase → **Authentication**: *Confirm email* **OFF**; *Minimum password length* 8; **Site URL** `https://shinx2ran.github.io/EG-Laundry/`; **Redirect URL** `https://shinx2ran.github.io/EG-Laundry/reset-sandi`. |
 | 4 | Pemilik | Buka alamat aplikasi → **Buat akun** (email sama dengan akun Supabase) → **Masukkan kode** → kode pemilik → **Gabung**. |
-| 5 | Pemilik + staf | **Pengaturan → Anggota → Undang** → pilih peran → **Kirim lewat WhatsApp**. Penerima membuat akun lewat tautan itu. |
-| 6 | Pemilik | Repo → **Settings → Secrets → Actions**: `BACKUP_DB_PASSWORD`. Aktifkan 2FA di GitHub dan Supabase. |
+| 5 | Pemilik | Bila ada data Mode Demo yang mau dibawa: **Pengaturan → Pindahkan data Mode Demo ke online** → pilih berkas dari langkah 1 (hanya selama laundry online belum punya pesanan; data contoh Mode Demo tertinggal kecuali "Sertakan data contoh Mode Demo" dinyalakan). |
+| 6 | Pemilik + staf | **Pengaturan → Anggota → Undang** → pilih peran → **Kirim lewat WhatsApp**. Penerima membuat akun lewat tautan itu. |
+| 7 | Pemilik | Repo → **Settings → Secrets → Actions**: `BACKUP_DB_PASSWORD`. Aktifkan 2FA di GitHub dan Supabase. |
 
 ### Mana yang rahasia?
 

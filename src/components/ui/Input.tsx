@@ -31,7 +31,7 @@ export function Field({ label, hint, error, required, className, children, htmlF
 }
 
 export const inputClass =
-  'h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:bg-slate-100 disabled:text-slate-500'
+  'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:bg-slate-100 disabled:text-slate-500'
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string

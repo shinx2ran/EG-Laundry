@@ -27,7 +27,7 @@ export function AboutCard({ onSignOut, email, repoMode }: { onSignOut: () => Pro
           {repoMode === 'supabase' && (
             <Link
               to="/reset-sandi"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
             >
               <KeyRound className="h-4 w-4" />
               Ganti kata sandi

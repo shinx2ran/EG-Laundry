@@ -453,7 +453,9 @@ describe('roles (SPEC 3.10)', () => {
     state.role = 'staff'
     const a = actions()
     const [payment] = (await repo.list('payments', { where: { order_id: PAID } })) as Payment[]
-    await expect(a.deleteOrder(await order(OPEN))).rejects.toThrow(STAFF_DELETE_ORDER_MESSAGE)
+    const onDeleted = vi.fn()
+    await expect(a.deleteOrder(await order(OPEN), onDeleted)).rejects.toThrow(STAFF_DELETE_ORDER_MESSAGE)
+    expect(onDeleted).not.toHaveBeenCalled()
     await expect(a.updatePayment(payment, { amount: 1_000, paid_at: today, method: 'cash', notes: null }, await ctx())).rejects.toThrow(STAFF_EDIT_PAYMENT_MESSAGE)
     await expect(a.deletePayment(payment)).rejects.toThrow(STAFF_DELETE_PAYMENT_MESSAGE)
     expect(await repo.get('orders', OPEN)).not.toBeNull()
@@ -481,7 +483,10 @@ describe('roles (SPEC 3.10)', () => {
   })
 
   it('owner: deleting an order removes its items and payments with it', async () => {
-    await actions().deleteOrder(await order(PAID))
+    // the page leaves as soon as the row is gone, before the lists reload
+    const onDeleted = vi.fn(() => expect(invalidate).not.toHaveBeenCalled())
+    await actions().deleteOrder(await order(PAID), onDeleted)
+    expect(onDeleted).toHaveBeenCalledOnce()
     expect(await repo.get('orders', PAID)).toBeNull()
     expect(await repo.list('order_items', { where: { order_id: PAID } })).toEqual([])
     expect(await repo.list('payments', { where: { order_id: PAID } })).toEqual([])

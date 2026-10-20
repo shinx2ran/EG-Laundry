@@ -230,4 +230,25 @@ test.describe('Pesanan (Mode Demo, 360 px)', () => {
     await expect(page.getByTestId('order-status').first()).toHaveText('Selesai')
     await expect(page.getByRole('button', { name: 'Ubah', exact: true })).toHaveCount(0)
   })
+
+  test('Hapus goes straight back to the list without flashing "Pesanan tidak ditemukan"', async ({ page }) => {
+    await loginDemo(page)
+    await page.goto('/pesanan/demo-order-02')
+    const number = (await page.getByRole('heading', { level: 1 }).textContent())?.trim() ?? ''
+    expect(number).toMatch(/^LD-\d{6}-\d{4}$/)
+    // record every text the page ever shows from here on
+    await page.evaluate(() => {
+      const w = window as unknown as { __seen: string[] }
+      w.__seen = []
+      new MutationObserver(() => w.__seen.push(document.body.innerText)).observe(document.body, { childList: true, subtree: true, characterData: true })
+    })
+    await page.getByRole('button', { name: 'Hapus', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Hapus', exact: true }).click()
+    await expect(page).toHaveURL(/\/pesanan$/)
+    await expect(page.getByText(`Pesanan ${number} dihapus.`)).toBeVisible()
+    await expect(page.getByTestId('order-row').first()).toBeVisible()
+    const seen = await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen)
+    expect(seen.some((t) => t.includes('Pesanan tidak ditemukan'))).toBe(false)
+    expect(await orderCount(page)).toBeGreaterThan(30)
+  })
 })

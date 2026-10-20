@@ -51,7 +51,7 @@ export function SignupPage() {
             'Setelah masuk, masukkan kode undangan, atau kode pemilik bila Anda pemilik yang baru memasang aplikasi.'
           )}
         </p>
-        <Link to="/login" className="mt-4 inline-block text-sm font-medium text-brand-700 hover:underline">
+        <Link to="/login" className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-brand-700 hover:underline">
           Ke halaman masuk
         </Link>
       </AuthLayout>
@@ -96,7 +96,7 @@ export function SignupPage() {
         </Button>
         <p className="text-center text-sm text-slate-600">
           Sudah punya akun?{' '}
-          <Link to="/login" className="font-medium text-brand-700 hover:underline">
+          <Link to="/login" className="inline-flex min-h-11 min-w-11 items-center justify-center font-medium text-brand-700 hover:underline">
             Masuk
           </Link>
         </p>

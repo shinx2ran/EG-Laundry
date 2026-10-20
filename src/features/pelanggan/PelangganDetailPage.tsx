@@ -100,7 +100,7 @@ export function PelangganDetailPage() {
 
   return (
     <>
-      <Link to="/pelanggan" className="mb-2 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-brand-700">
+      <Link to="/pelanggan" className="mb-2 inline-flex min-h-11 items-center gap-1 text-sm text-slate-600 hover:text-brand-700">
         <ArrowLeft className="h-4 w-4" aria-hidden /> Semua pelanggan
       </Link>
       <PageHeader
@@ -144,7 +144,7 @@ export function PelangganDetailPage() {
                   {
                     label: 'Nomor HP',
                     value: c.phone ? (
-                      <a href={wa ?? `tel:${c.phone}`} target="_blank" rel="noopener noreferrer" className="tabular-nums text-brand-700 hover:underline">
+                      <a href={wa ?? `tel:${c.phone}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center tabular-nums text-brand-700 hover:underline">
                         {c.phone}
                       </a>
                     ) : (

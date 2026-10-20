@@ -56,12 +56,12 @@ export function BackupReminderBanner() {
           type="button"
           onClick={() => void download()}
           disabled={downloading}
-          className="mt-1 font-semibold text-amber-900 underline underline-offset-2 disabled:opacity-60"
+          className="-ml-2 inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-amber-900 underline underline-offset-2 hover:bg-amber-100 disabled:opacity-60"
         >
           {downloading ? 'Menyiapkan cadangan…' : 'Unduh cadangan sekarang'}
         </button>
       </div>
-      <button type="button" onClick={dismiss} className="-m-1 rounded-lg p-2 text-amber-700 hover:bg-amber-100" aria-label="Tutup pengingat">
+      <button type="button" onClick={dismiss} className="-my-1.5 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-amber-700 hover:bg-amber-100" aria-label="Tutup pengingat">
         <X className="h-4 w-4" />
       </button>
     </div>

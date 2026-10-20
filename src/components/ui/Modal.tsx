@@ -51,9 +51,9 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
           widths[size],
         )}
       >
-        <div className="flex shrink-0 touch-pinch-zoom items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex shrink-0 touch-pinch-zoom items-center justify-between border-b border-slate-100 py-1.5 pl-4 pr-2">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Tutup">
+          <button type="button" onClick={onClose} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -101,7 +101,7 @@ export function ConfirmDialog({
       footer={
         <>
           {cancelLabel !== null && (
-            <button type="button" onClick={onClose} className="h-10 rounded-lg px-4 text-sm font-medium text-slate-700 hover:bg-slate-100">
+            <button type="button" onClick={onClose} className="h-11 rounded-lg px-4 text-sm font-medium text-slate-700 hover:bg-slate-100">
               {cancelLabel}
             </button>
           )}
@@ -110,7 +110,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={loading}
             className={clsx(
-              'h-10 rounded-lg px-4 text-sm font-medium text-white disabled:opacity-60',
+              'h-11 rounded-lg px-4 text-sm font-medium text-white disabled:opacity-60',
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-700 hover:bg-brand-800',
             )}
           >

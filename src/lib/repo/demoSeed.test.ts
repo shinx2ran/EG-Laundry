@@ -61,6 +61,35 @@ describe('demo data (SPEC 3.11)', () => {
     }
   })
 
+  it('never puts ready / pickup times or payments in the future, and keeps them in order', () => {
+    const check = (seedClock: Date) => {
+      const d = buildDemoDb(seedClock)
+      const now = seedClock.toISOString()
+      const day = todayISO(seedClock)
+      for (const o of d.orders) {
+        if (o.ready_at) {
+          expect(o.ready_at <= now, `${o.id} ready_at ${o.ready_at}`).toBe(true)
+          expect(o.ready_at >= o.created_at, o.id).toBe(true)
+        }
+        if (o.picked_up_at) {
+          expect(o.picked_up_at <= now, `${o.id} picked_up_at ${o.picked_up_at}`).toBe(true)
+          expect(o.picked_up_at >= o.ready_at!, o.id).toBe(true)
+        }
+      }
+      for (const p of d.payments) expect(p.paid_at <= day, p.id).toBe(true)
+      for (const k of d.customer_packages) expect(k.purchased_at <= day, k.id).toBe(true)
+      return d
+    }
+    // ready orders were promised for tomorrow: they are ready today, at 09:00 once that has passed
+    const ready = check(TODAY).orders.filter((o) => o.status === 'ready')
+    expect(ready).toHaveLength(3)
+    for (const o of ready) expect(o.ready_at).toBe(new Date(2026, 9, 19, 9).toISOString())
+    // built just after midnight: nothing is later than the clock
+    const early = check(new Date(2026, 9, 19, 0, 5))
+    for (const o of early.orders.filter((x) => x.status === 'ready')) expect(o.ready_at).toBe(new Date(2026, 9, 19, 0, 5).toISOString())
+    check(new Date(2026, 9, 19, 23, 59))
+  })
+
   it('numbers orders LD-YYYYMM-NNNN in order of receipt, without gaps or duplicates', () => {
     expect(new Set(db.orders.map((o) => o.order_number)).size).toBe(db.orders.length)
     const chronological = [...db.orders].sort((a, b) => a.created_at.localeCompare(b.created_at))

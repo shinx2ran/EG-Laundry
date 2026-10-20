@@ -65,7 +65,7 @@ function OnlineAuditCard() {
         title="Riwayat perubahan"
         subtitle={`${LIMIT} perubahan terakhir: siapa, kapan, apa`}
         action={
-          <Button variant="ghost" size="sm" icon={<RefreshCw className="h-4 w-4" />} onClick={() => void log.refetch()} loading={log.isFetching} aria-label="Muat ulang riwayat">
+          <Button variant="ghost" className="min-w-11" icon={<RefreshCw className="h-4 w-4" />} onClick={() => void log.refetch()} loading={log.isFetching} aria-label="Muat ulang riwayat">
             <span className="hidden sm:inline">Muat ulang</span>
           </Button>
         }

@@ -32,7 +32,7 @@ export function MembersCard({ isAdmin, currentUserId }: { isAdmin: boolean; curr
         subtitle="Siapa saja yang bisa membuka data laundry ini"
         action={
           isAdmin ? (
-            <Button size="sm" icon={<UserPlus className="h-4 w-4" />} onClick={() => setInviteOpen(true)}>
+            <Button icon={<UserPlus className="h-4 w-4" />} onClick={() => setInviteOpen(true)}>
               Undang
             </Button>
           ) : (

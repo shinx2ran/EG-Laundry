@@ -405,10 +405,12 @@ export function useOrderActions() {
     }
 
     /** Hapus pesanan (owner/admin): items and payments go with it; packages used become available again. */
-    async function deleteOrder(order: Order): Promise<void> {
+    /** `onDeleted` runs right after the delete succeeded, before the lists are reloaded (the page leaves first). */
+    async function deleteOrder(order: Order, onDeleted?: () => void): Promise<void> {
       if (!isAdmin) throw new Error(STAFF_DELETE_ORDER_MESSAGE)
       try {
         await repo.remove('orders', order.id)
+        onDeleted?.()
       } finally {
         await invalidate('orders', 'order_items', 'payments')
       }

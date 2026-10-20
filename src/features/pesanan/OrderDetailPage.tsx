@@ -64,6 +64,8 @@ export function OrderDetailPage() {
     return kind ? { kind } : null
   })
   const [busy, setBusy] = useState<OrderAction | 'confirm' | null>(null)
+  // set once the order was deleted: the page is on its way back to the list, so "tidak ditemukan" must not flash
+  const [leaving, setLeaving] = useState(false)
   const today = todayISO()
   const isAdmin = actions.isAdmin
 
@@ -77,6 +79,7 @@ export function OrderDetailPage() {
   if (data.isPending) return <LoadingState />
   if (data.error) return <ErrorState error={data.error} />
   if (!order) {
+    if (leaving) return <LoadingState />
     return (
       <EmptyState
         title="Pesanan tidak ditemukan"
@@ -140,9 +143,13 @@ export function OrderDetailPage() {
         await actions.cancelOrder(order, data)
         toast.success(`Pesanan ${order.order_number} dibatalkan.`)
       } else if (dialog.kind === 'delete') {
-        await actions.deleteOrder(order)
-        toast.success(`Pesanan ${order.order_number} dihapus.`)
-        navigate('/pesanan', { replace: true })
+        const number = order.order_number
+        // back to the list as soon as the delete succeeded, before the lists reload without this order
+        await actions.deleteOrder(order, () => {
+          setLeaving(true)
+          toast.success(`Pesanan ${number} dihapus.`)
+          navigate('/pesanan', { replace: true })
+        })
         return
       } else if (dialog.kind === 'delete-payment') {
         await actions.deletePayment(dialog.payment)
@@ -193,7 +200,7 @@ export function OrderDetailPage() {
       />
 
       {justCreated && (
-        <Card className="mb-4 border-emerald-200 bg-emerald-50">
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 shadow-sm" data-testid="order-created">
           <CardBody className="space-y-3">
             <div className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" aria-hidden />
@@ -213,7 +220,7 @@ export function OrderDetailPage() {
               <MissingPhoneLink variant="button" customer={customer} className="w-full" />
             ) : null}
           </CardBody>
-        </Card>
+        </div>
       )}
 
       {offered.length > 0 && (
@@ -259,7 +266,7 @@ export function OrderDetailPage() {
             {customer ? (
               <div>
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <Link to={`/pelanggan/${customer.id}`} className="font-semibold text-brand-700 hover:underline">
+                  <Link to={`/pelanggan/${customer.id}`} className="inline-flex min-h-11 items-center font-semibold text-brand-700 hover:underline">
                     {customer.name}
                   </Link>
                   <TenantBadge customer={customer} />

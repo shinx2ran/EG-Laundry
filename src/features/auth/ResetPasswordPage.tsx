@@ -43,7 +43,7 @@ export function ResetPasswordPage() {
         <p className="text-sm text-slate-700">
           Tautan reset sudah kedaluwarsa atau sudah dipakai. Minta tautan baru dari halaman masuk.
         </p>
-        <Link to="/login" className="mt-4 inline-block text-sm font-medium text-brand-700 hover:underline">
+        <Link to="/login" className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-brand-700 hover:underline">
           Ke halaman masuk
         </Link>
       </AuthLayout>

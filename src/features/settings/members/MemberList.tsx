@@ -173,7 +173,7 @@ function ManageMemberModal({
                   type="button"
                   onClick={() => setStep('remove')}
                   disabled={busy}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-red-200 px-4 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden /> Hapus dari daftar anggota
                 </button>
