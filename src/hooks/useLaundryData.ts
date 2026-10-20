@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useTable } from './useTable'
 import type { Customer, CustomerPackage, Order, OrderItem, PackageCatalogItem, Payment, Service } from '../types/db'
 import { orderTotals, type OrderTotals } from '../domain/pricing'
+import { groupBy } from '../lib/collections'
 
 export interface LaundryData {
   /** price list, by sort_order (inactive services included: old orders refer to them) */
@@ -28,17 +29,6 @@ export interface LaundryData {
   totalsFor: (order: Order) => OrderTotals
   isPending: boolean
   error: unknown
-}
-
-function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
-  const map = new Map<string, T[]>()
-  for (const row of rows) {
-    const k = key(row)
-    const list = map.get(k)
-    if (list) list.push(row)
-    else map.set(k, [row])
-  }
-  return map
 }
 
 const EMPTY: never[] = []

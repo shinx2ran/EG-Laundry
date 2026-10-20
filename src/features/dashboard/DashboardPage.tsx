@@ -7,13 +7,13 @@ import { useOrg } from '../../hooks/useOrg'
 import { useLaundryData } from '../../hooks/useLaundryData'
 import { formatDate, formatRupiah, todayISO } from '../../lib/format'
 import { newOrderLinkClass } from '../pesanan/styles'
-import { buildDashboard, firstRunSteps, SERIES_DAYS } from './dashboardModel'
+import { buildDashboard, dayLabel, firstRunSteps, SERIES_DAYS } from './dashboardModel'
 import { StatTiles } from './StatTiles'
 import { LateCard, ReadyCard, SectionCard, UnpaidCard } from './DashboardCards'
 import { FirstRunCard } from './FirstRunCard'
 
 // recharts is big: its own chunk, fetched only when an owner/admin opens the dashboard
-const MoneyChart = lazy(() => import('./MoneyChart').then((m) => ({ default: m.MoneyChart })))
+const MoneyBarChart = lazy(() => import('../../components/MoneyBarChart').then((m) => ({ default: m.MoneyBarChart })))
 
 /**
  * Dashboard (SPEC 3.6): the laundry's name and today's date, the big "+ Pesanan baru", the day's numbers (each opening
@@ -30,6 +30,10 @@ export function DashboardPage() {
     [orders, orderItems, payments, customerPackages, customers, today],
   )
   const weekTotal = model.moneySeries.reduce((sum, d) => sum + d.total, 0)
+  const chartPoints = useMemo(
+    () => model.moneySeries.map((d) => ({ key: d.date, label: dayLabel(d.date), title: formatDate(d.date, 'EEEE, d MMM yyyy'), amount: d.total })),
+    [model.moneySeries],
+  )
 
   return (
     <>
@@ -56,9 +60,11 @@ export function DashboardPage() {
               <UnpaidCard unpaid={model.unpaid} />
               {isAdmin && (
                 <SectionCard title={`Uang masuk ${SERIES_DAYS} hari`} subtitle={`Total ${formatRupiah(weekTotal)}`} link={{ to: '/laporan', label: 'Lihat laporan' }} testId="money-card">
-                  <Suspense fallback={<div className="h-40" aria-hidden />}>
-                    <MoneyChart series={model.moneySeries} />
-                  </Suspense>
+                  <div className="px-1 pb-2 pt-3">
+                    <Suspense fallback={<div className="h-[136px]" aria-hidden />}>
+                      <MoneyBarChart points={chartPoints} height={136} testId="money-chart" />
+                    </Suspense>
+                  </div>
                 </SectionCard>
               )}
             </div>

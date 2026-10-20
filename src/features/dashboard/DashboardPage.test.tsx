@@ -14,8 +14,8 @@ vi.mock('../../hooks/useOrg', () => ({
   useOrg: () => ({ org: state.org, repo: state.repo, role: state.role, isAdmin: state.role !== 'staff', isLocalMode: true }),
 }))
 // recharts needs a real layout engine; the chart itself is checked in the e2e test
-vi.mock('./MoneyChart', () => ({
-  MoneyChart: ({ series }: { series: { total: number }[] }) => <div data-testid="money-chart">{series.map((d) => d.total).join(',')}</div>,
+vi.mock('../../components/MoneyBarChart', () => ({
+  MoneyBarChart: ({ points }: { points: { amount: number }[] }) => <div data-testid="money-chart">{points.map((d) => d.amount).join(',')}</div>,
 }))
 
 import { DashboardPage } from './DashboardPage'

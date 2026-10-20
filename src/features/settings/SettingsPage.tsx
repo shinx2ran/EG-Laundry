@@ -1,4 +1,5 @@
-import { Link } from 'react-router'
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router'
 import { Tags } from 'lucide-react'
 import { Card, CardBody, CardHeader, PageHeader } from '../../components/ui'
 import { useAuth } from '../../hooks/useAuth'
@@ -16,6 +17,12 @@ import { DemoImportCard } from '../impor/DemoImportCard'
 export function SettingsPage() {
   const { org, role, repo, isLocalMode, isAdmin } = useOrg()
   const { auth, session } = useAuth()
+  const { hash } = useLocation()
+
+  // /pengaturan#pesan-whatsapp (Laporan's "Isi di Pengaturan") opens the page at that card
+  useEffect(() => {
+    if (hash.length > 1) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: 'start' })
+  }, [hash])
 
   return (
     <>

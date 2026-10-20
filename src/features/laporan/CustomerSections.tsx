@@ -1,18 +1,19 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { clsx } from 'clsx'
-import { MessageCircle } from 'lucide-react'
-import { Card, CardBody, Segmented } from '../../components/ui'
+import { Card, CardBody, Segmented, WhatsAppLink } from '../../components/ui'
 import { formatDate, formatNumber, whatsappLink } from '../../lib/format'
 import { promoText } from '../../domain/messages'
 import type { Customer, Order } from '../../types/db'
 import { FilterChips, TenantBadge } from '../pelanggan/components'
 import { MissingPhoneLink } from '../pelanggan/MissingPhoneLink'
 import { CUSTOMER_FILTERS, CUSTOMER_FILTER_LABEL, customerFilterCounts, lastVisitText, matchesCustomerFilter, type CustomerFilter } from '../pelanggan/customerUtils'
-import { LAMA_MAX_DAYS, LAMA_MIN_DAYS, absentCustomers, customerPeriodText, parseLamaDays, type CustomerReportRow, type DateRange, type Laporan } from './reportModel'
+import { LAMA_MAX_DAYS, LAMA_MIN_DAYS, absentCustomers, customerPeriodText, parseLamaDays, type CustomerReportRow, type Laporan } from './reportModel'
+import type { DateRange } from '../../lib/dateRange'
 import { buildAbsentSheet, buildCustomersSheet } from './export'
 import { readLamaDays, writeLamaDays } from './lamaSetting'
 import { ExportButtons } from './sections'
+import { WHATSAPP_CARD_ID } from '../settings/whatsappTexts'
 import type { LaporanTab } from './useLaporanParams'
 
 const BUBBLE = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full'
@@ -26,17 +27,9 @@ function PromoLink({ customer, template }: { customer: Customer; template: strin
   const href = whatsappLink(customer.phone, text || undefined)
   if (!href) return <MissingPhoneLink customer={customer} className={BUBBLE} />
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`Kirim promo ke ${customer.name}`}
-      data-testid="promo-link"
-      className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-    >
-      <MessageCircle className="h-4 w-4" aria-hidden />
+    <WhatsAppLink href={href} aria-label={`Kirim promo ke ${customer.name}`} data-testid="promo-link" className="shrink-0 gap-1.5 px-3">
       Kirim promo
-    </a>
+    </WhatsAppLink>
   )
 }
 
@@ -45,7 +38,7 @@ function PromoHint() {
   return (
     <div data-testid="promo-hint" className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 py-1 pl-3 pr-1 text-xs text-amber-900">
       <span>Template promo belum diisi, pesan promo masih kosong.</span>
-      <Link to="/pengaturan" className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 font-medium underline hover:bg-amber-100">
+      <Link to={`/pengaturan#${WHATSAPP_CARD_ID}`} className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 font-medium underline hover:bg-amber-100">
         Isi di Pengaturan
       </Link>
     </div>

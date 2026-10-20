@@ -2,7 +2,8 @@ import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 import { todayISO } from '../../lib/format'
 import { CUSTOMER_FILTER_PARAM, parseCustomerFilter, type CustomerFilter } from '../pelanggan/customerUtils'
-import { PRESET_PARAM, rangeLabel, resolveRange, type DateRange, type RangePreset } from './reportModel'
+import { PRESET_PARAM, rangeLabel, resolveRange, type RangePreset } from './reportModel'
+import type { DateRange } from '../../lib/dateRange'
 
 export type LaporanTab = 'pelanggan' | 'lama'
 

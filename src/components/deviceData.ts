@@ -57,11 +57,17 @@ export function datedFileName(name: string, now: Date = new Date()): string {
 
 /** Trigger a browser download of `text` through a temporary <a download>. */
 export function downloadText(text: string, fileName: string, type = 'application/json'): void {
-  const url = URL.createObjectURL(new Blob([text], { type }))
+  downloadBlob(new Blob([text], { type }), fileName)
+}
+
+/** Trigger a browser download of `blob` (a backup, an XLSX / CSV export) through a temporary <a download>. */
+export function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = fileName
   a.rel = 'noopener'
+  a.style.display = 'none'
   document.body.appendChild(a)
   a.click()
   a.remove()

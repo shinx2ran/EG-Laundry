@@ -3,15 +3,18 @@
  * `today` / the range explicitly, so it is unit-tested with fixed data (reportModel.test.ts).
  *
  * Money definitions are exactly SPEC 3.5:
- *  - **Uang masuk** = Σ payments.amount by `paid_at` + Σ customer_packages.price by `purchased_at`.
+ *  - **Uang masuk** = Σ payments.amount by `paid_at` + Σ customer_packages.price by `purchased_at` (src/domain/money,
+ *    the same definition as the Dashboard).
  *  - **Piutang** = Σ outstanding (orderTotals) of the orders that are not cancelled.
  * Orders count by `received_at` and never when cancelled; quantities and per-service figures come from the
  * order_items snapshots (service_name, unit, qty, line_total), so a later price or name change never rewrites
  * history. Items paid by a prepaid package count in kg/pcs with Rp 0 (their line_total is 0).
  */
-import type { Customer, CustomerPackage, Order, OrderItem, Payment, PaymentMethod, Unit } from '../../types/db'
-import { PAYMENT_METHODS } from '../../types/db'
+import type { Customer, CustomerPackage, Order, OrderItem, Payment, Unit } from '../../types/db'
 import { orderTotals, roundQty } from '../../domain/pricing'
+import { moneyInByDay, moneyInTotals, type MoneyInTotals } from '../../domain/money'
+import { groupBy } from '../../lib/collections'
+import { inRange, isValidDateISO, minISO, rangeLength, type DateRange } from '../../lib/dateRange'
 import { addDaysISO, daysBetween, formatDate, formatMonth, formatNumber, formatQty, formatRupiah } from '../../lib/format'
 
 /** What staff see on /laporan (SPEC 3.10: reports are for the owner and admins; the menu entry is hidden too). */
@@ -30,12 +33,6 @@ export const RANGE_PRESET_LABEL: Record<RangePreset, string> = {
   month: 'Bulan ini',
   year: 'Tahun ini',
   custom: 'Khusus',
-}
-
-/** Both ends included, 'YYYY-MM-DD'. */
-export interface DateRange {
-  start: string
-  end: string
 }
 
 export const DEFAULT_PRESET: RangePreset = 'month'
@@ -70,13 +67,6 @@ function isoOf(y: number, m: number, d: number): string {
   return `${pad(dt.getUTCFullYear(), 4)}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`
 }
 
-/** Strict, calendar-valid 'YYYY-MM-DD' (no 2026-02-30). */
-export function isISODate(value: string | null | undefined): value is string {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const [y, m, d] = ymd(value)
-  return isoOf(y, m, d) === value
-}
-
 /** Monday = 0 … Sunday = 6. */
 function weekdayFromMonday(iso: string): number {
   const [y, m, d] = ymd(iso)
@@ -98,11 +88,6 @@ export function rangeForPreset(preset: Exclude<RangePreset, 'custom'>, today: st
     case 'year':
       return { start: isoOf(y, 1, 1), end: isoOf(y, 12, 31) }
   }
-}
-
-/** Number of days in the range, both ends included (0 when reversed). */
-export function rangeLength(range: DateRange): number {
-  return Math.max(0, daysBetween(range.start, range.end) + 1)
 }
 
 /**
@@ -162,32 +147,14 @@ export function resolveRange(params: { periode: string | null; from: string | nu
   const preset = parsePresetParam(params.periode)
   if (preset !== 'custom') return { preset, range: rangeForPreset(preset, today) }
   const month = rangeForPreset('month', today)
-  const from = isISODate(params.from) ? params.from : month.start
-  const to = isISODate(params.to) ? params.to : month.end
+  const from = isValidDateISO(params.from) ? params.from : month.start
+  const to = isValidDateISO(params.to) ? params.to : month.end
   return { preset, range: from <= to ? { start: from, end: to } : { start: to, end: from } }
 }
 
 /** '20 Okt 2026' for one day, '1 Okt 2026 – 31 Okt 2026' otherwise. */
 export function rangeLabel(range: DateRange): string {
   return range.start === range.end ? formatDate(range.start) : `${formatDate(range.start)} – ${formatDate(range.end)}`
-}
-
-export function inRange(iso: string, range: DateRange): boolean {
-  const d = iso.slice(0, 10)
-  return d >= range.start && d <= range.end
-}
-
-/** Every day of the range, oldest first (at most ~11 years, a guard against a typo like year 20266). */
-export function daysInRange(range: DateRange): string[] {
-  const n = Math.min(rangeLength(range), 4_000)
-  const days: string[] = []
-  for (let i = 0; i < n; i++) days.push(addDaysISO(range.start, i))
-  return days
-}
-
-/** The earlier of two dates. */
-export function minISO(a: string, b: string): string {
-  return a <= b ? a : b
 }
 
 // =====================================================================================================================
@@ -203,46 +170,17 @@ export interface DayAmount {
   amount: number
 }
 
-export interface MoneyIn {
-  total: number
-  /** payments on orders, by paid_at */
-  fromPayments: number
-  /** prepaid packages sold, by purchased_at */
-  fromPackages: number
-  byMethod: Record<PaymentMethod, number>
+export interface MoneyIn extends MoneyInTotals {
   /** one entry per day of the range, zero days included */
   byDay: DayAmount[]
 }
 
-function emptyByMethod(): Record<PaymentMethod, number> {
-  const out = {} as Record<PaymentMethod, number>
-  for (const m of PAYMENT_METHODS) out[m] = 0
-  return out
-}
-
-/** Uang masuk of the range: payments by paid_at + package purchases by purchased_at, per day and per method. */
+/** Uang masuk of the range (src/domain/money): total, per source, per method and per day. */
 export function moneyIn(payments: PaymentRow[], packages: PackageRow[], range: DateRange, opts: { withDays?: boolean } = {}): MoneyIn {
+  const totals = moneyInTotals(payments, packages, range)
   const withDays = opts.withDays ?? true
-  const perDay = new Map<string, number>()
-  const byMethod = emptyByMethod()
-  let fromPayments = 0
-  let fromPackages = 0
-  const add = (date: string, amount: number, method: PaymentMethod) => {
-    if (withDays) perDay.set(date, (perDay.get(date) ?? 0) + amount)
-    if (method in byMethod) byMethod[method] += amount
-  }
-  for (const p of payments) {
-    if (!inRange(p.paid_at, range)) continue
-    fromPayments += p.amount
-    add(p.paid_at.slice(0, 10), p.amount, p.method)
-  }
-  for (const k of packages) {
-    if (!inRange(k.purchased_at, range)) continue
-    fromPackages += k.price
-    add(k.purchased_at.slice(0, 10), k.price, k.method)
-  }
-  const byDay = withDays ? daysInRange(range).map((date) => ({ date, amount: perDay.get(date) ?? 0 })) : []
-  return { total: fromPayments + fromPackages, fromPayments, fromPackages, byMethod, byDay }
+  const byDay = withDays ? moneyInByDay(range.start, range.end, payments, packages).map((d) => ({ date: d.date, amount: d.total })) : []
+  return { ...totals, byDay }
 }
 
 export type ChartGranularity = 'day' | 'month'
@@ -285,14 +223,8 @@ export function ordersInRange<T extends Pick<Order, 'received_at' | 'status'>>(o
   return orders.filter((o) => o.status !== 'cancelled' && inRange(o.received_at, range))
 }
 
-export function groupItemsByOrder<T extends Pick<OrderItem, 'order_id'>>(items: T[]): Map<string, T[]> {
-  const map = new Map<string, T[]>()
-  for (const it of items) {
-    const list = map.get(it.order_id)
-    if (list) list.push(it)
-    else map.set(it.order_id, [it])
-  }
-  return map
+function groupItemsByOrder<T extends Pick<OrderItem, 'order_id'>>(items: T[]): Map<string, T[]> {
+  return groupBy(items, (it) => it.order_id)
 }
 
 export interface ServiceRow {
@@ -613,22 +545,6 @@ export function absentCustomers(customers: Customer[], orders: Pick<Order, 'cust
 // =====================================================================================================================
 // Formatting and the change vs the previous period
 // =====================================================================================================================
-
-/** At most one decimal with a decimal comma, no trailing ',0': 1.25 -> '1,3'; 2 -> '2'. */
-function oneDecimal(n: number): string {
-  return String(Math.round(n * 10) / 10).replace('.', ',')
-}
-
-/** Axis ticks: 1_200_000 -> '1,2 jt'; 850_000 -> '850 rb'; 1_500_000_000 -> '1,5 M'; 0 -> '0'. */
-export function formatCompactRupiah(n: number): string {
-  if (!Number.isFinite(n) || n === 0) return '0'
-  const sign = n < 0 ? '-' : ''
-  const abs = Math.abs(n)
-  if (abs >= 1_000_000_000) return `${sign}${oneDecimal(abs / 1_000_000_000)} M`
-  if (abs >= 1_000_000) return `${sign}${oneDecimal(abs / 1_000_000)} jt`
-  if (abs >= 1_000) return `${sign}${oneDecimal(abs / 1_000)} rb`
-  return `${sign}${Math.round(abs)}`
-}
 
 export interface Delta {
   direction: 'up' | 'down' | 'flat'

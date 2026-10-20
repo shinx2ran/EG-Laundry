@@ -22,6 +22,29 @@ export function formatNumber(n: number | null | undefined): string {
   return number.format(Math.round(n))
 }
 
+const COMPACT_UNITS: [number, string][] = [
+  [1_000_000_000, 'M'],
+  [1_000_000, 'jt'],
+  [1_000, 'rb'],
+]
+
+/**
+ * Short rupiah for chart axes (the chart's title says it is rupiah): 0 -> '0', 500 -> '500', 18.000 -> '18 rb',
+ * 152.400 -> '152 rb', 999.999 -> '1 jt', 1.250.000 -> '1,3 jt', 1.500.000.000 -> '1,5 M'. One decimal only below 10.
+ */
+export function formatCompactRupiah(amount: number): string {
+  if (!Number.isFinite(amount)) return '0'
+  const n = Math.abs(Math.round(amount))
+  if (n === 0) return '0'
+  const sign = amount < 0 ? '−' : ''
+  for (const [unit, suffix] of COMPACT_UNITS) {
+    const v = n / unit
+    const shown = v < 9.95 ? Math.round(v * 10) / 10 : Math.round(v)
+    if (shown >= 1) return `${sign}${shown.toLocaleString('id-ID', { maximumFractionDigits: 1 })} ${suffix}`
+  }
+  return `${sign}${n}`
+}
+
 /** Parse a user-typed Rupiah string ("1.500.000", "Rp 1,5jt" is NOT supported) to integer. */
 export function parseRupiah(input: string): number {
   const digits = input.replace(/[^0-9-]/g, '')

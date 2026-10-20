@@ -4,7 +4,8 @@
  * list and the package sale row. No React, no I/O, so everything here is unit-tested in node.
  */
 import type { Customer, CustomerPackage, Order, OrgInsert, PackageCatalogItem, PaymentMethod, Update } from '../../types/db'
-import { addDaysISO, daysBetween, formatDate, normalizePhone, parseDate, toDateISO } from '../../lib/format'
+import { addDaysISO, daysBetween, formatDate, normalizePhone } from '../../lib/format'
+import { isValidDateISO } from '../../lib/dateRange'
 
 // ---------------------------------------------------------------- form
 
@@ -286,13 +287,6 @@ export function packageState(pkg: Pick<CustomerPackage, 'expires_at'>, remaining
 export const ERR_PICK_PACKAGE = 'Pilih paket yang dijual.'
 export const ERR_PACKAGE_INACTIVE = 'Paket ini sudah tidak dijual.'
 export const ERR_PACKAGE_DATE = 'Tanggal pembelian tidak valid.'
-
-/** 'YYYY-MM-DD' that really exists (no 2026-02-30). */
-export function isValidDateISO(iso: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false
-  const d = parseDate(iso)
-  return d !== null && toDateISO(d) === iso
-}
 
 /** expires_at = purchased_at + valid_days; null = never expires. */
 export function packageExpiry(purchasedAt: string, validDays: number | null): string | null {

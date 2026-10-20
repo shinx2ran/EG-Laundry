@@ -10,12 +10,8 @@ import {
   comparableRanges,
   customerPeriodText,
   customerReport,
-  daysInRange,
   describeDelta,
-  formatCompactRupiah,
   formatPct,
-  inRange,
-  isISODate,
   moneyIn,
   ordersInRange,
   parseLamaDays,
@@ -24,7 +20,6 @@ import {
   previousRange,
   rangeForPreset,
   rangeLabel,
-  rangeLength,
   resolveRange,
   splitPercent,
   summarizeOrders,
@@ -148,16 +143,7 @@ describe('ranges', () => {
     expect(resolveRange({ periode: 'khusus', from: '2026-02-30', to: 'kemarin' }, TODAY).range).toEqual(OCT)
   })
 
-  it('date helpers', () => {
-    expect(isISODate('2026-02-28')).toBe(true)
-    expect(isISODate('2026-02-29')).toBe(false)
-    expect(isISODate('2026-2-1')).toBe(false)
-    expect(isISODate(null)).toBe(false)
-    expect(rangeLength(OCT)).toBe(31)
-    expect(rangeLength({ start: '2026-10-02', end: '2026-10-01' })).toBe(0)
-    expect(daysInRange({ start: '2026-10-30', end: '2026-11-02' })).toEqual(['2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02'])
-    expect(inRange('2026-10-31T23:00:00Z', OCT)).toBe(true)
-    expect(inRange('2026-11-01', OCT)).toBe(false)
+  it('range labels', () => {
     expect(rangeLabel(OCT)).toBe('1 Okt 2026 – 31 Okt 2026')
     expect(rangeLabel({ start: TODAY, end: TODAY })).toBe('20 Okt 2026')
   })
@@ -348,15 +334,6 @@ describe('formatting', () => {
     // kg without float noise
     expect(describeDelta(10, 5.5, (n) => `${n} kg`).text).toBe('▲ 4.5 kg (82%)')
     expect(describeDelta(0.3, 0.1 + 0.2, String).direction).toBe('flat')
-  })
-
-  it('formatCompactRupiah for the chart axis', () => {
-    expect(formatCompactRupiah(0)).toBe('0')
-    expect(formatCompactRupiah(500)).toBe('500')
-    expect(formatCompactRupiah(25_000)).toBe('25 rb')
-    expect(formatCompactRupiah(1_250_000)).toBe('1,3 jt')
-    expect(formatCompactRupiah(1_500_000_000)).toBe('1,5 M')
-    expect(formatCompactRupiah(-2_000)).toBe('-2 rb')
   })
 })
 

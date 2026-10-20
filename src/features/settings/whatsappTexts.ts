@@ -6,6 +6,9 @@
 import type { Organization } from '../../types/db'
 import { promoText, readyText } from '../../domain/messages'
 
+/** The card's element id: /pengaturan#pesan-whatsapp opens Pengaturan scrolled to it (Laporan's promo hint). */
+export const WHATSAPP_CARD_ID = 'pesan-whatsapp'
+
 export const PROMO_PLACEHOLDER = 'Halo {nama}! Minggu ini cuci setrika diskon 10% di EG Laundry. Berlaku s/d Minggu.'
 export const FOOTER_PLACEHOLDER = 'Buka setiap hari 07.00-21.00 · Jl. Contoh No. 1 · Transfer/QRIS: BCA 1234567890 a.n. EG Laundry'
 /** the sample customer of the preview */

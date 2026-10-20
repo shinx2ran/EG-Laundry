@@ -6,14 +6,16 @@
  *  - Sedang proses: Diterima + Proses; late ones (isOrderLate) listed separately, most overdue first.
  *  - Siap diambil: every ready order with what is still owed and how long it has been waiting.
  *  - Belum bayar (piutang, SPEC 3.5): outstanding of every order that is not cancelled; the largest five listed.
- *  - Uang masuk (SPEC 3.5): payments by paid_at + package purchases by purchased_at, split by method, for today and
- *    for the last seven days.
+ *  - Uang masuk (SPEC 3.5, src/domain/money): payments by paid_at + package purchases by purchased_at, split by
+ *    method, for today and for the last seven days.
  * Order arithmetic (totals, outstanding, late) comes from src/domain/pricing.
  */
-import type { Customer, CustomerPackage, Order, OrderItem, Payment, PaymentMethod, Service } from '../../types/db'
+import type { Customer, CustomerPackage, Order, OrderItem, Payment, Service } from '../../types/db'
 import { isOrderLate, orderTotals, roundQty, type OrderTotals } from '../../domain/pricing'
 import { itemsSummary } from '../../domain/messages'
-import { addDaysISO, daysBetween, formatDate, formatNumber, formatQty, formatRupiah, toDateISO } from '../../lib/format'
+import { moneyInSeries, type MoneyInDay } from '../../domain/money'
+import { groupBy } from '../../lib/collections'
+import { daysBetween, formatDate, formatQty, formatRupiah, toDateISO } from '../../lib/format'
 
 /** Days in the mini chart of uang masuk (today included). */
 export const SERIES_DAYS = 7
@@ -61,15 +63,6 @@ export interface Intake {
   value: number
 }
 
-export interface MoneyIn {
-  /** 'YYYY-MM-DD' */
-  date: string
-  total: number
-  byMethod: Record<PaymentMethod, number>
-  /** the part of `total` that came from prepaid packages sold that day */
-  packages: number
-}
-
 export interface DashboardModel {
   today: string
   /** no order recorded yet: the page shows the first-run card instead of the numbers */
@@ -82,54 +75,9 @@ export interface DashboardModel {
   ready: ReadyEntry[]
   /** piutang: every order that is not cancelled and still owes something */
   unpaid: { count: number; amount: number; top: OrderEntry[] }
-  moneyToday: MoneyIn
+  moneyToday: MoneyInDay
   /** SERIES_DAYS days ending today, oldest first */
-  moneySeries: MoneyIn[]
-}
-
-// ---------- uang masuk (SPEC 3.5) ----------
-
-function emptyMoney(date: string): MoneyIn {
-  return { date, total: 0, byMethod: { cash: 0, transfer: 0, qris: 0 }, packages: 0 }
-}
-
-/**
- * Uang masuk per day from `from` to `to` (inclusive, oldest first, one entry per calendar day even when nothing came
- * in): Σ payments.amount by paid_at + Σ customer_packages.price by purchased_at, each split by its method.
- */
-export function moneyInByDay(
-  from: string,
-  to: string,
-  payments: Pick<Payment, 'amount' | 'paid_at' | 'method'>[],
-  packages: Pick<CustomerPackage, 'price' | 'purchased_at' | 'method'>[],
-): MoneyIn[] {
-  const days: MoneyIn[] = []
-  const byDate = new Map<string, MoneyIn>()
-  for (let d = from; d <= to; d = addDaysISO(d, 1)) {
-    const day = emptyMoney(d)
-    days.push(day)
-    byDate.set(d, day)
-  }
-  const add = (date: string, amount: number, method: PaymentMethod, isPackage: boolean) => {
-    const day = byDate.get(date.slice(0, 10))
-    if (!day) return
-    day.total += amount
-    day.byMethod[method] = (day.byMethod[method] ?? 0) + amount
-    if (isPackage) day.packages += amount
-  }
-  for (const p of payments) add(p.paid_at, p.amount, p.method, false)
-  for (const pkg of packages) add(pkg.purchased_at, pkg.price, pkg.method, true)
-  return days
-}
-
-/** The last `days` days ending on `today` (oldest first). */
-export function moneyInSeries(
-  today: string,
-  payments: Pick<Payment, 'amount' | 'paid_at' | 'method'>[],
-  packages: Pick<CustomerPackage, 'price' | 'purchased_at' | 'method'>[],
-  days = SERIES_DAYS,
-): MoneyIn[] {
-  return moneyInByDay(addDaysISO(today, -(days - 1)), today, payments, packages)
+  moneySeries: MoneyInDay[]
 }
 
 // ---------- orders ----------
@@ -162,17 +110,6 @@ export function intakeOn(day: string, orders: Pick<Order, 'id' | 'received_at' |
   let value = 0
   for (const o of counted) value += orderTotals(o, own, payments).total
   return { count: counted.length, kg: roundQty(kg), pcs, value }
-}
-
-function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
-  const map = new Map<string, T[]>()
-  for (const row of rows) {
-    const k = key(row)
-    const list = map.get(k)
-    if (list) list.push(row)
-    else map.set(k, [row])
-  }
-  return map
 }
 
 /** Everything the dashboard shows, for `today`. */
@@ -218,7 +155,7 @@ export function buildDashboard(src: DashboardSource, today: string): DashboardMo
   ready.sort((a, b) => b.daysWaiting - a.daysWaiting || (a.order.ready_at ?? '￿').localeCompare(b.order.ready_at ?? '￿') || byNumber(a, b))
   unpaid.sort((a, b) => b.totals.outstanding - a.totals.outstanding || a.order.received_at.localeCompare(b.order.received_at) || byNumber(a, b))
 
-  const moneySeries = moneyInSeries(today, src.payments, src.customerPackages)
+  const moneySeries = moneyInSeries(today, src.payments, src.customerPackages, SERIES_DAYS)
   return {
     today,
     isEmpty: src.orders.length === 0,
@@ -269,19 +206,6 @@ export function waitingText(daysWaiting: number): string {
 /** 'Janji 16 Okt 2026 · terlambat 3 hari'. */
 export function lateText(entry: Pick<LateEntry, 'daysLate'> & { order: Pick<Order, 'promised_at'> }): string {
   return `Janji ${formatDate(entry.order.promised_at)} · terlambat ${entry.daysLate} hari`
-}
-
-/** Chart axis (the card title says it is rupiah): 0 -> '0', 18.000 -> '18 rb', 1.250.000 -> '1,3 jt'. */
-export function formatCompactAmount(amount: number): string {
-  const sign = amount < 0 ? '−' : ''
-  const n = Math.abs(Math.round(amount))
-  const rb = Math.round(n / 1_000)
-  if (rb >= 1_000) {
-    const jt = Math.round(n / 100_000) / 10
-    return `${sign}${jt.toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`
-  }
-  if (n >= 1_000) return `${sign}${formatNumber(rb)} rb`
-  return `${sign}${n}`
 }
 
 /** Short weekday for the chart's axis: '2026-10-19' -> 'Sen'. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addDaysISO,
   daysBetween,
+  formatCompactRupiah,
   formatDate,
   formatDateTime,
   formatMonth,
@@ -59,6 +60,21 @@ describe('money', () => {
     expect(parseCount('12 kg')).toBe(12)
     expect(parseCount('')).toBeNull()
     expect(parseCount('123456')).toBe(1234)
+  })
+
+  it('compact rupiah for chart axes: one decimal only below 10, rounding up to the next unit', () => {
+    expect(formatCompactRupiah(0)).toBe('0')
+    expect(formatCompactRupiah(500)).toBe('500')
+    expect(formatCompactRupiah(18_000)).toBe('18 rb')
+    expect(formatCompactRupiah(1_500)).toBe('1,5 rb')
+    expect(formatCompactRupiah(25_000)).toBe('25 rb')
+    expect(formatCompactRupiah(152_400)).toBe('152 rb')
+    expect(formatCompactRupiah(999_999)).toBe('1 jt')
+    expect(formatCompactRupiah(1_250_000)).toBe('1,3 jt')
+    expect(formatCompactRupiah(12_000_000)).toBe('12 jt')
+    expect(formatCompactRupiah(1_500_000_000)).toBe('1,5 M')
+    expect(formatCompactRupiah(-18_000)).toBe('−18 rb')
+    expect(formatCompactRupiah(Number.NaN)).toBe('0')
   })
 })
 

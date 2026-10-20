@@ -11,6 +11,7 @@
  */
 import { z } from 'zod'
 import type { Customer, Update } from '../../types/db'
+import { groupBy } from '../../lib/collections'
 import { addDaysISO, normalizePhone, todayISO } from '../../lib/format'
 
 // ---------------------------------------------------------------- reading the file
@@ -303,18 +304,6 @@ type Match = { customer: ImportCustomer; reason: MatchReason } | { conflict: str
 
 const byName = (a: WoombadTenant, b: WoombadTenant) => a.full_name.localeCompare(b.full_name, 'id', { sensitivity: 'base' }) || (a.id < b.id ? -1 : 1)
 const nameList = (customers: ImportCustomer[]) => customers.map((c) => c.name).join(', ')
-
-function groupBy<T>(rows: readonly T[], key: (row: T) => string | null): Map<string, T[]> {
-  const map = new Map<string, T[]>()
-  for (const r of rows) {
-    const k = key(r)
-    if (k === null) continue
-    const list = map.get(k)
-    if (list) list.push(r)
-    else map.set(k, [r])
-  }
-  return map
-}
 
 /**
  * Decide what the import changes (SPEC 3.8). For every tenant with a current lease (currentLease) the customer is

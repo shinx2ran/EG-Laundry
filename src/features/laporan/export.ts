@@ -1,13 +1,13 @@
 /**
  * Unduh XLSX / CSV for the Laporan tables (SPEC 3.7), ported from the kos app's export helpers: rows become flat
  * sheets with Indonesian headers ('date' cells hold 'YYYY-MM-DD', 'money' cells integer rupiah), written as XLSX
- * (write-excel-file, lazy-loaded) or as CSV with a UTF-8 BOM and ';' (Indonesian Excel). Everything here is pure
- * except `downloadBlob`.
+ * (write-excel-file, lazy-loaded) or as CSV with a UTF-8 BOM and ';' (Indonesian Excel). Everything here is pure;
+ * the download itself is `downloadBlob` (src/components/deviceData).
  */
 import type { CellObject, Row, Sheet, SheetData } from 'write-excel-file/browser'
 import type { Customer } from '../../types/db'
-import type { AbsentRow, CustomerReportRow, DateRange, OrdersSummary } from './reportModel'
-import { isISODate } from './reportModel'
+import type { AbsentRow, CustomerReportRow, OrdersSummary } from './reportModel'
+import { isValidDateISO, type DateRange } from '../../lib/dateRange'
 
 export type CellType = 'string' | 'number' | 'money' | 'date'
 export type ExportCell = string | number | null
@@ -188,7 +188,7 @@ export function safeSheetName(name: string): string {
 export function toXlsxCell(cell: ExportCell | undefined, type: CellType): CellObject | null {
   if (cell === null || cell === undefined) return null
   if (typeof cell === 'number') return type === 'money' ? { value: cell, type: Number, format: MONEY_FORMAT } : { value: cell, type: Number }
-  if (type === 'date' && isISODate(cell)) {
+  if (type === 'date' && isValidDateISO(cell)) {
     const [y, m, d] = cell.split('-').map(Number)
     return { value: new Date(y, m - 1, d), type: Date, format: DATE_FORMAT }
   }
@@ -220,19 +220,4 @@ export async function buildXlsxBlob(sheets: ExportSheet[]): Promise<Blob> {
 
 export function buildCsvBlob(sheet: ExportSheet, delimiter: ';' | ',' = ';'): Blob {
   return new Blob([toCsv(sheet, delimiter)], { type: CSV_MIME })
-}
-
-/** Starts a browser download through a temporary <a download>. */
-export function downloadBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = fileName
-  a.rel = 'noopener'
-  a.style.display = 'none'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  // give the browser a moment to start the download before revoking
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

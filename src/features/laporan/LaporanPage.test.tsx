@@ -21,7 +21,7 @@ vi.mock('../../hooks/useOrg', () => ({
   }),
 }))
 // recharts needs a real layout engine; the chart itself is not what is tested here
-vi.mock('./UangMasukChart', () => ({ UangMasukChart: () => <div data-testid="chart-stub" /> }))
+vi.mock('../../components/MoneyBarChart', () => ({ MoneyBarChart: () => <div data-testid="chart-stub" /> }))
 
 import { LaporanPage } from './LaporanPage'
 import { LAMA_STORAGE_KEY } from './lamaSetting'
@@ -112,7 +112,7 @@ describe('LaporanPage', () => {
   it('without a promo template: a hint to Pengaturan, Kirim promo opens a blank chat', async () => {
     setup({ template: '  ' })
     const hint = await screen.findByTestId('promo-hint')
-    expect(within(hint).getByRole('link', { name: 'Isi di Pengaturan' }).getAttribute('href')).toBe('/pengaturan')
+    expect(within(hint).getByRole('link', { name: 'Isi di Pengaturan' }).getAttribute('href')).toBe('/pengaturan#pesan-whatsapp')
     expect(screen.getByRole('link', { name: 'Kirim promo ke Rina Putri' }).getAttribute('href')).toBe('https://wa.me/6281200000001')
   })
 

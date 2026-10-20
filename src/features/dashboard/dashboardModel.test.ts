@@ -7,14 +7,11 @@ import {
   buildDashboard,
   dayLabel,
   firstRunSteps,
-  formatCompactAmount,
   inProgressLink,
   intakeOn,
   intakeText,
   lateText,
   localDay,
-  moneyInByDay,
-  moneyInSeries,
   orderLink,
   readyDaysWaiting,
   waitingText,
@@ -70,38 +67,6 @@ function pkg(price: number, purchased_at: string, method: PaymentMethod): Pick<C
 function source(partial: Partial<DashboardSource>): DashboardSource {
   return { orders: [], orderItems: [], payments: [], customerPackages: [], customers: [customer('c1', 'Rina'), customer('c2', 'Dimas', '0812-0000-0002')], ...partial }
 }
-
-describe('uang masuk (SPEC 3.5: payments by paid_at + packages by purchased_at)', () => {
-  const payments = [
-    payment('a', 20_000, '2026-10-19', 'cash'),
-    payment('b', 15_000, '2026-10-19', 'qris'),
-    payment('c', 7_000, '2026-10-18', 'transfer'),
-    payment('d', 99_000, '2026-10-12', 'cash'), // a day before the 7-day window
-    payment('e', 5_000, '2026-10-20', 'cash'), // tomorrow: never counted today
-  ]
-  const packages = [pkg(140_000, '2026-10-19', 'transfer'), pkg(140_000, '2026-10-13', 'cash')]
-
-  it('sums each day by method, with the packages sold that day', () => {
-    const days = moneyInByDay('2026-10-18', '2026-10-19', payments, packages)
-    expect(days.map((d) => d.date)).toEqual(['2026-10-18', '2026-10-19'])
-    expect(days[1]).toEqual({ date: '2026-10-19', total: 175_000, byMethod: { cash: 20_000, transfer: 140_000, qris: 15_000 }, packages: 140_000 })
-    expect(days[0]).toEqual({ date: '2026-10-18', total: 7_000, byMethod: { cash: 0, transfer: 7_000, qris: 0 }, packages: 0 })
-  })
-
-  it('the 7-day series ends today, oldest first, with empty days kept', () => {
-    const series = moneyInSeries(TODAY, payments, packages)
-    expect(series).toHaveLength(SERIES_DAYS)
-    expect(series.map((d) => d.date)).toEqual(['2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19'])
-    expect(series.map((d) => d.total)).toEqual([140_000, 0, 0, 0, 0, 7_000, 175_000])
-    expect(series[0].byMethod).toEqual({ cash: 140_000, transfer: 0, qris: 0 })
-  })
-
-  it('crosses a month end', () => {
-    const series = moneyInSeries('2026-03-02', [payment('x', 1_000, '2026-02-27')], [], 4)
-    expect(series.map((d) => d.date)).toEqual(['2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02'])
-    expect(series[0].total).toBe(1_000)
-  })
-})
 
 describe('masuk hari ini', () => {
   it('counts today’s orders that are not cancelled: kg, pcs and their totals after discount', () => {
@@ -281,17 +246,6 @@ describe('small rules', () => {
     expect(orderLink('demo-order-04')).toBe('/pesanan/demo-order-04')
     expect(orderLink('demo-order-04', 'diambil')).toBe('/pesanan/demo-order-04?aksi=diambil')
     expect(orderLink('demo-order-04', 'bayar')).toBe('/pesanan/demo-order-04?aksi=bayar')
-  })
-
-  it('compact amounts for the chart axis', () => {
-    expect(formatCompactAmount(0)).toBe('0')
-    expect(formatCompactAmount(500)).toBe('500')
-    expect(formatCompactAmount(18_000)).toBe('18 rb')
-    expect(formatCompactAmount(152_400)).toBe('152 rb')
-    expect(formatCompactAmount(999_999)).toBe('1 jt')
-    expect(formatCompactAmount(1_250_000)).toBe('1,3 jt')
-    expect(formatCompactAmount(12_000_000)).toBe('12 jt')
-    expect(formatCompactAmount(-18_000)).toBe('−18 rb')
   })
 
   it('weekday labels in Indonesian', () => {

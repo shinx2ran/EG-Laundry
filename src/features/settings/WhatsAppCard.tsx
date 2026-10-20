@@ -12,6 +12,7 @@ import {
   PROMO_MAX_LENGTH,
   PROMO_PLACEHOLDER,
   templateNotes,
+  WHATSAPP_CARD_ID,
   whatsAppChanged,
   whatsAppPreview,
   whatsAppTextsOf,
@@ -67,7 +68,7 @@ function WhatsAppForm({ org }: { org: Organization }) {
   }
 
   return (
-    <Card>
+    <Card id={WHATSAPP_CARD_ID} className="scroll-mt-20">
       <CardHeader title="Pesan WhatsApp" subtitle="Template promo dan footer setiap pesan" action={<MessageCircle className="h-5 w-5 text-slate-400" />} />
       <CardBody>
         <form onSubmit={save} className="space-y-4">

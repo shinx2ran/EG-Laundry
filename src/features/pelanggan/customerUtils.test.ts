@@ -17,7 +17,6 @@ import {
   formToCustomerPatch,
   formToCustomerPayload,
   initials,
-  isValidDateISO,
   lastVisitText,
   matchesCustomerFilter,
   matchesCustomerSearch,
@@ -244,9 +243,9 @@ describe('prepaid package sale (SPEC 3.4)', () => {
     expect(validatePackageSale({ catalog, purchasedAt: '' })).toBe(ERR_PACKAGE_DATE)
     expect(validatePackageSale({ catalog, purchasedAt: '2026-02-30' })).toBe(ERR_PACKAGE_DATE)
     expect(validatePackageSale({ catalog, purchasedAt: '2026-10-19' })).toBeNull()
-    expect(isValidDateISO('2024-02-29')).toBe(true)
-    expect(isValidDateISO('2026-13-01')).toBe(false)
-    expect(isValidDateISO('19-10-2026')).toBe(false)
+    expect(validatePackageSale({ catalog, purchasedAt: '2026-13-01' })).toBe(ERR_PACKAGE_DATE)
+    expect(validatePackageSale({ catalog, purchasedAt: '19-10-2026' })).toBe(ERR_PACKAGE_DATE)
+    expect(validatePackageSale({ catalog, purchasedAt: '2024-02-29' })).toBeNull()
   })
 
   it('packageState: Habis beats Kedaluwarsa, Aktif otherwise', () => {

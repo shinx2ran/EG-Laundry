@@ -1,27 +1,28 @@
-import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { Banknote, FileSpreadsheet, FileText, Scale, ShoppingBag, Wallet } from 'lucide-react'
 import { Button, Card, CardBody, CardHeader, Segmented, StatCard, useToast } from '../../components/ui'
 import { inputClass } from '../../components/ui/Input'
 import { formatDate, formatNumber, formatQty, formatRupiah } from '../../lib/format'
+import { isValidDateISO, type DateRange } from '../../lib/dateRange'
 import { PAYMENT_METHOD_LABEL, PAYMENT_METHODS } from '../../types/db'
 import {
   RANGE_PRESETS,
   RANGE_PRESET_LABEL,
   describeDelta,
   formatPct,
-  isISODate,
   rangeLabel,
-  type DateRange,
   type Delta,
   type Laporan,
   type RangePreset,
   type SegmentKey,
   type TenantSplit,
 } from './reportModel'
-import { buildCsvBlob, buildXlsxBlob, downloadBlob, exportFileName, type ExportSheet } from './export'
+import { downloadBlob } from '../../components/deviceData'
+import { buildCsvBlob, buildXlsxBlob, exportFileName, type ExportSheet } from './export'
 
-const UangMasukChart = lazy(() => import('./UangMasukChart').then((m) => ({ default: m.UangMasukChart })))
+// recharts is big: its own chunk (shared with the Dashboard's chart), fetched only when a chart is drawn
+const MoneyBarChart = lazy(() => import('../../components/MoneyBarChart').then((m) => ({ default: m.MoneyBarChart })))
 
 // ---------------------------------------------------------------- range
 
@@ -51,7 +52,7 @@ function CustomRange({ range, onChange }: { range: DateRange; onChange: (range: 
   const [end, setEnd] = useState(range.end)
   const [error, setError] = useState<string | null>(null)
   const apply = (s: string, e: string) => {
-    if (!isISODate(s) || !isISODate(e)) return setError('Isi tanggal awal dan akhir.')
+    if (!isValidDateISO(s) || !isValidDateISO(e)) return setError('Isi tanggal awal dan akhir.')
     if (s > e) return setError('Tanggal awal harus sebelum tanggal akhir.')
     setError(null)
     onChange({ start: s, end: e })
@@ -169,6 +170,10 @@ export function SummaryTiles({ report, today }: { report: Laporan; today: string
 export function MoneyInCard({ report }: { report: Laporan }) {
   const { money } = report
   const empty = money.total === 0
+  const chartPoints = useMemo(
+    () => report.chart.map((p) => ({ ...p, title: report.granularity === 'day' ? formatDate(p.key, 'EEEE, d MMM yyyy') : formatDate(`${p.key}-01`, 'MMMM yyyy') })),
+    [report.chart, report.granularity],
+  )
   return (
     <Card className="mb-4" data-testid="uang-masuk-card">
       <CardHeader
@@ -181,7 +186,7 @@ export function MoneyInCard({ report }: { report: Laporan }) {
           <p className="flex h-[120px] items-center justify-center rounded-lg bg-slate-50 text-sm text-slate-500">Belum ada uang masuk pada periode ini.</p>
         ) : (
           <Suspense fallback={<div className="h-[200px] animate-pulse rounded-lg bg-slate-50" aria-label="Memuat grafik" />}>
-            <UangMasukChart data={report.chart} />
+            <MoneyBarChart points={chartPoints} height={200} testId="uang-masuk-chart" />
           </Suspense>
         )}
         <dl className="grid grid-cols-3 gap-2 text-center text-xs" aria-label="Per metode bayar">

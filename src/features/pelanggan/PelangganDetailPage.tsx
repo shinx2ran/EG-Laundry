@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { clsx } from 'clsx'
-import { ArrowLeft, ExternalLink, MessageCircle, MessageCirclePlus, Package, Pencil, Plus, Trash2, UserX } from 'lucide-react'
-import { Badge, Button, Card, CardBody, CardHeader, ConfirmDialog, EmptyState, ErrorState, LoadingState, PageHeader, useToast } from '../../components/ui'
+import { ArrowLeft, ExternalLink, MessageCirclePlus, Package, Pencil, Plus, Trash2, UserX } from 'lucide-react'
+import { Badge, Button, Card, CardBody, CardHeader, ConfirmDialog, EmptyState, ErrorState, LoadingState, PageHeader, useToast, WhatsAppLink } from '../../components/ui'
 import { useLaundryData } from '../../hooks/useLaundryData'
 import { isOrderLate, packageRemaining } from '../../domain/pricing'
 import { itemsSummary } from '../../domain/messages'
@@ -114,15 +114,9 @@ export function PelangganDetailPage() {
         actions={
           <>
             {wa && (
-              <a
-                href={wa}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`WhatsApp ${c.name}`}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
-              >
-                <MessageCircle className="h-4 w-4" aria-hidden /> WhatsApp
-              </a>
+              <WhatsAppLink href={wa} aria-label={`WhatsApp ${c.name}`}>
+                WhatsApp
+              </WhatsAppLink>
             )}
             <Button variant="outline" className="h-11" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditOpen(true)}>
               Ubah
