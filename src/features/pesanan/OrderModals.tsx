@@ -5,7 +5,7 @@ import type { OrderTotals } from '../../domain/pricing'
 import { formatRupiah, todayISO } from '../../lib/format'
 import { RecordHistory } from '../settings/audit/RecordHistory'
 import { DATE_RE, PAYMENT_DATE_MESSAGE, isSamePayment, paymentProblem, paymentRoom, validatePaymentEdit, type PaymentEditPatch } from './orderUtils'
-import type { ActionContext, OrderActions } from './useOrderActions'
+import { PaymentSavedError, type ActionContext, type OrderActions } from './useOrderActions'
 
 const METHOD_OPTIONS = PAYMENT_METHODS.map((m) => ({ key: m, label: PAYMENT_METHOD_LABEL[m] }))
 
@@ -79,7 +79,8 @@ export function ReceivePaymentModal({ order, totals, ctx, actions, onClose }: { 
 
 /**
  * Diambil (SPEC 3.3): Siap → Selesai. While something is owed the same dialog offers to take it (on by default,
- * amount = the outstanding), written before the status changes.
+ * amount = the outstanding), written before the status changes. When the payment was saved but the status change
+ * failed, the dialog switches to status only, so a retry never records the same money twice.
  */
 export function PickupModal({ order, totals, customer, ctx, actions, onClose }: { order: Order; totals: OrderTotals; customer: Customer | undefined; ctx: ActionContext; actions: OrderActions; onClose: () => void }) {
   const toast = useToast()
@@ -88,6 +89,7 @@ export function PickupModal({ order, totals, customer, ctx, actions, onClose }: 
   const [amount, setAmount] = useState(totals.outstanding)
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [saving, setSaving] = useState(false)
+  const [savedPayment, setSavedPayment] = useState<number | null>(null)
   const paying = owes && takePayment
   const error = paying ? paymentProblem(amount, order, totals) : null
 
@@ -100,6 +102,10 @@ export function PickupModal({ order, totals, customer, ctx, actions, onClose }: 
       toast.success(left > 0 ? `Pesanan ${order.order_number} diambil. Sisa bayar ${formatRupiah(left)}.` : `Pesanan ${order.order_number} diambil dan lunas.`)
       onClose()
     } catch (err) {
+      if (err instanceof PaymentSavedError) {
+        setTakePayment(false)
+        setSavedPayment(err.payment.amount)
+      }
       toast.error(errorText(err, 'Gagal menyimpan.'))
       setSaving(false)
     }
@@ -124,6 +130,9 @@ export function PickupModal({ order, totals, customer, ctx, actions, onClose }: 
     >
       <div className="space-y-4">
         <p className="text-sm text-slate-700">{`Pesanan ${order.order_number}${customer ? ` milik ${customer.name}` : ''} sudah diambil? Status menjadi Selesai.`}</p>
+        {savedPayment !== null && !paying && (
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{`Pembayaran ${formatRupiah(savedPayment)} sudah tercatat. Ketuk Tandai diambil untuk mengubah statusnya saja.`}</p>
+        )}
         {owes ? (
           <>
             <div className="space-y-1 rounded-lg bg-amber-50 p-3">

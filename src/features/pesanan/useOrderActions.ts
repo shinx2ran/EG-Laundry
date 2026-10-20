@@ -101,6 +101,19 @@ export class PartialSaveError extends Error {
   }
 }
 
+/**
+ * Diambil: the payment was written but the status change after it failed. A retry must change the status only,
+ * otherwise the same cash is recorded twice (a partial amount still fits under the outstanding).
+ */
+export class PaymentSavedError extends Error {
+  readonly payment: Payment
+  constructor(message: string, payment: Payment) {
+    super(message)
+    this.name = 'PaymentSavedError'
+    this.payment = payment
+  }
+}
+
 const MAX_NUMBER_RETRIES = 3
 
 function message(err: unknown): string {
@@ -322,7 +335,8 @@ export function useOrderActions() {
 
     /**
      * Diambil (SPEC 3.3): Siap -> Selesai, picked_up_at = now. With `payment` the remaining amount is taken
-     * first (amount <= outstanding), then the status changes; a status failure after the payment reports both.
+     * first (amount <= outstanding), then the status changes; a status failure after the payment reports both
+     * (PaymentSavedError: the caller retries without the payment).
      */
     async function markPickedUp(order: Order, ctx: ActionContext, payment: PaymentInput | null = null): Promise<{ order: Order; payment: Payment | null }> {
       const problem = transitionProblem(order.status, 'done')
@@ -348,7 +362,7 @@ export function useOrderActions() {
         const updated = await repo.update('orders', order.id, { status: 'done', picked_up_at: new Date().toISOString() })
         return { order: updated, payment: paymentRow }
       } catch (err) {
-        if (paymentRow) throw new Error(`Pembayaran tercatat, tetapi status pesanan gagal diubah: ${message(err)}`)
+        if (paymentRow) throw new PaymentSavedError(`Pembayaran tercatat, tetapi status pesanan gagal diubah: ${message(err)}`, paymentRow)
         throw err
       } finally {
         await invalidate('orders')
